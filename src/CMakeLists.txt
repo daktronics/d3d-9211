@@ -7,6 +7,7 @@ set(ALL_SRCS
 	d3d11.h	
 	main.cpp
 	platform.h
+	renderer.cpp
 	renderer9.cpp
 	renderer11.cpp
 	resource.h

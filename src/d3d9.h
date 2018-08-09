@@ -3,14 +3,76 @@
 #include <d3d9.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace d3d9 {
 
-	class SwapChain;
 	class Geometry;
 	class Effect;
 	class Texture2D;
 	class Context;
+	class SwapChain;
+
+	class Texture2D
+	{
+	private:
+		std::shared_ptr<IDirect3DDevice9Ex> const device_;
+		std::shared_ptr<IDirect3DTexture9> const texture_;
+		void* share_handle_;
+		uint32_t width_;
+		uint32_t height_;
+
+	public:
+		Texture2D(
+			std::shared_ptr<IDirect3DDevice9Ex> const device,
+			IDirect3DTexture9* texture,
+			void* share_handle);
+
+		uint32_t width() const;
+		uint32_t height() const;
+		void* share_handle() const;
+
+		operator IDirect3DTexture9*() {
+			return texture_.get();
+		}
+
+	};
+
+	//
+	// for D3D9 - our 'swapchain' manages offscreen render-target(s)
+	//
+	class SwapChain
+	{
+	private:
+		std::shared_ptr<IDirect3DDevice9Ex> const device_;
+		std::shared_ptr<IDirect3DSurface9> saved_target_;
+		std::vector<std::shared_ptr<Texture2D>> buffers_;
+
+	public:
+		SwapChain(
+			std::shared_ptr<IDirect3DDevice9Ex> const device,
+			std::vector<std::shared_ptr<Texture2D>> const& buffers);
+
+		void bind(void*);
+		void unbind();
+
+		size_t buffer_count() const {
+			return buffers_.size();
+		}
+
+		std::shared_ptr<Texture2D> buffer(size_t n) const 
+		{
+			if (n < buffers_.size()) {
+				return buffers_[n];
+			}
+			return nullptr;
+		}
+
+	private:
+
+		void update_viewport(IDirect3DSurface9*);
+	};
+
 
 	//
 	// encapsulate a D3D11 Device object
@@ -19,6 +81,7 @@ namespace d3d9 {
 	{
 	private:
 		HMODULE _lib_compiler;
+		std::shared_ptr<IDirect3DQuery9> flush_query_;
 		std::shared_ptr<IDirect3DDevice9Ex> const device_;
 
 	public:
@@ -30,8 +93,17 @@ namespace d3d9 {
 			return device_.get();
 		}
 
+		std::shared_ptr<SwapChain> create_swapchain(uint32_t buffers, uint32_t width, uint32_t height);
+		std::shared_ptr<Texture2D> create_shared_texture(uint32_t width, uint32_t height);
+		
 		void clear(float red, float green, float blue, float alpha);
+
+		void begin_scene();
+		void end_scene();
+
 		void present();
+
+		void flush();
 
 		//std::shared_ptr<SwapChain> create_swapchain(HWND, int width=0, int height=0);
 		
