@@ -1,13 +1,13 @@
 #include "platform.h"
 #include "util.h"
-
-//#include "d3d11.h"
-//#include "composition.h"
+#include "scene.h"
 
 #include "resource.h"
 
 #include <fstream>
 #include <sstream>
+
+using namespace std;
 
 //
 // if we're running on a system with hybrid graphics ... 
@@ -18,9 +18,8 @@ extern "C"
 	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
 	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 }
-				
-				
-HWND create_window(HINSTANCE, std::string const& title, int width, int height);
+			
+HWND create_window(HINSTANCE instance, int width, int height);
 LRESULT CALLBACK wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
 int sync_interval_ = 1;
@@ -56,19 +55,20 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	uint32_t width = 640;
 	uint32_t height = 360;
 
-	std::string title("D3D 9 to 11 Demo");
-	//title.append(cef_version());
-
-	//title.append(" - [gpu: ");
-	//title.append(device->adapter_name());
-	//title.append("]");
-
-	// create a window with our specific size
-	auto const window = create_window(instance, title, width, height);
-	if (!IsWindow(window)) {
+	// create window(s) with our specific size
+	auto const win_main = create_window(instance, width, height);
+	if (!IsWindow(win_main)) {
 		assert(0);
 		return 0;
 	}
+
+	auto const win_preview = create_window(instance, width, height);
+	if (!IsWindow(win_preview)) {
+		assert(0);
+		return 0;
+	}
+
+	auto const producer = create_producer(win_preview);
 
 	// create a D3D11 swapchain for the window
 	//auto swapchain = device->create_swapchain(window);
@@ -77,8 +77,9 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	//	return 0;
 	//}
 
-	// make the window visible now that we have D3D11 components ready
-	ShowWindow(window, SW_NORMAL);
+	// make the windows visible now that we have D3D components ready
+	ShowWindow(win_main, SW_NORMAL);
+	ShowWindow(win_preview, SW_NORMAL);
 
 	// load keyboard accelerators
 	HACCEL accel_table = 
@@ -94,7 +95,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	{
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
-			if (!TranslateAccelerator(window, accel_table, &msg))
+			if (!TranslateAccelerator(win_main, accel_table, &msg))
 			{
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
@@ -138,7 +139,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	return 0;
 }
 
-HWND create_window(HINSTANCE instance, std::string const& title, int width, int height)
+HWND create_window(HINSTANCE instance, int width, int height)
 {
 	LPCWSTR class_name = L"_main_window_";
 
@@ -163,7 +164,7 @@ HWND create_window(HINSTANCE instance, std::string const& title, int width, int 
 	}
 
 	auto const hwnd = CreateWindow(class_name,
-						to_utf16(title).c_str(),
+						L"",
 						WS_OVERLAPPEDWINDOW,
 						CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 
 						nullptr, 
