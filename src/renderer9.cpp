@@ -30,7 +30,7 @@ namespace {
 		{
 		}
 
-		void present() override
+		void present(int32_t) override
 		{
 		}
 

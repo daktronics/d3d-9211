@@ -69,13 +69,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	}
 
 	auto const producer = create_producer(win_preview);
-
-	// create a D3D11 swapchain for the window
-	//auto swapchain = device->create_swapchain(window);
-	//if (!swapchain) {
-	//	assert(0);
-	//	return 0;
-	//}
+	auto const consumer = create_consumer(win_main);
 
 	// make the windows visible now that we have D3D components ready
 	ShowWindow(win_main, SW_NORMAL);
@@ -103,15 +97,24 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 		}
 		else
 		{
-			// update composition + layers based on time
-			/*auto const t = (time_now() - start_time) / 1000000.0;
-			composition_->tick(t);
+			auto const t = (time_now() - start_time) / 1000000.0;
 
-			swapchain->bind(ctx);
+			producer->tick(t);
+			producer->render();
+
+			consumer->tick(t);
+			consumer->render();
+
+			// our preview window shows the producer ... without vsync
+			producer->present(0);
+
+			// our main window is vsync'd for the consumer
+			consumer->present(sync_interval_);
+
 
 			// is there a request to resize ... if so, resize
 			// both the swapchain and the composition
-			if (resize_) 
+			/*if (resize_) 
 			{
 				RECT rc;
 				GetClientRect(window, &rc);
@@ -123,16 +126,9 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 					composition_->resize(sync_interval_ != 0, width, height);
 					swapchain->resize(width, height);
 				}
-			}
+			}*/
 
-			// clear the render-target
-			swapchain->clear(0.0f, 0.0f, 1.0f, 1.0f);
 
-			// render our scene
-			composition_->render(ctx);
-
-			// present to window
-			swapchain->present(sync_interval_);*/
 		}
 	}
 	
