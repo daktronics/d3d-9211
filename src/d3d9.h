@@ -103,7 +103,7 @@ namespace d3d9 {
 
 		void present();
 
-		void flush();
+		bool flush();
 
 		//std::shared_ptr<SwapChain> create_swapchain(HWND, int width=0, int height=0);
 		

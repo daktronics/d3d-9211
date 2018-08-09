@@ -21,6 +21,7 @@ private:
 	ISurface& operator=(ISurface const&) = delete;
 };
 
+
 //
 // we're using a queue to exchange work between producers and consumers
 //
@@ -30,21 +31,17 @@ public:
 	ISurfaceQueue() {}
 	virtual ~ISurfaceQueue() {}
 
-	//virtual void abort() = 0;
+	// allocate/fetch a surface for writing (caller = producer)
+	virtual std::shared_ptr<ISurface> checkout(uint32_t timeout_ms) = 0;
 
-	virtual void push(std::shared_ptr<ISurface> const&) = 0;
-	virtual std::shared_ptr<ISurface> pop() = 0;
-
-	// return a surface to the pool for re-use
-	// (consumers should call this when done with a surface they popped)
-	//
-	virtual void checkin(std::shared_ptr<ISurface> const&) = 0;
-
-	// get a free surface to the pool for writing
-	// (producers should call this when they want to write to a new surface)
-	//
-	virtual std::shared_ptr<ISurface> checkout() = 0;
+	// mark a surface as ready for consumption (caller = producer)
+	virtual void produce(std::shared_ptr<ISurface> const&) = 0;	
 	
+	// get next surface to be consumed (caller = consumer)
+	virtual std::shared_ptr<ISurface> consume(uint32_t timeout_ms) = 0;
+
+	// surface can be de-allocated, or returned to a pool (caller = consumer)
+	virtual void checkin(std::shared_ptr<ISurface> const&) = 0;
 
 private:
 	ISurfaceQueue(ISurfaceQueue const&) = delete;

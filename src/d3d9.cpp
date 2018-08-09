@@ -11,7 +11,7 @@ namespace d3d9 {
 	Device::Device(IDirect3DDevice9Ex* pdev)
 		: device_(to_com_ptr(pdev))
 	{
-		_lib_compiler = LoadLibrary(L"d3dcompiler_47.dll");
+_lib_compiler = LoadLibrary(L"d3dcompiler_47.dll");
 	}
 
 	string Device::adapter_name() const
@@ -31,7 +31,7 @@ namespace d3d9 {
 	}
 
 	shared_ptr<SwapChain> Device::create_swapchain(
-			uint32_t buffers, uint32_t width, uint32_t height)
+		uint32_t buffers, uint32_t width, uint32_t height)
 	{
 		vector<std::shared_ptr<Texture2D>> textures;
 
@@ -43,15 +43,15 @@ namespace d3d9 {
 				width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, &share);
 			if (SUCCEEDED(hr)) {
 				textures.push_back(make_shared<Texture2D>(device_, texture, share));
-			}		
+			}
 		}
 
 		if (!textures.empty()) {
 			return make_shared<SwapChain>(device_, textures);
 		}
-		return nullptr;		
+		return nullptr;
 	}
-	
+
 	shared_ptr<Texture2D> Device::create_shared_texture(uint32_t width, uint32_t height)
 	{
 		HANDLE share = nullptr;
@@ -71,12 +71,12 @@ namespace d3d9 {
 		device_->Clear(0, nullptr, D3DCLEAR_TARGET, color, 1.0f, 0);
 	}
 
-	void Device::begin_scene() 
+	void Device::begin_scene()
 	{
 		device_->BeginScene();
 	}
 
-	void Device::end_scene() 
+	void Device::end_scene()
 	{
 		device_->EndScene();
 	}
@@ -86,7 +86,7 @@ namespace d3d9 {
 		device_->Present(nullptr, nullptr, nullptr, nullptr);
 	}
 
-	void Device::flush()
+	bool Device::flush()
 	{
 		if (!flush_query_)
 		{
@@ -96,21 +96,31 @@ namespace d3d9 {
 				flush_query_ = to_com_ptr<>(query);
 			}
 		}
-		
-		if (flush_query_) 
-		{
-			flush_query_->Issue(D3DISSUE_END);
 
-			int count = 1;
-			while (flush_query_->GetData(NULL, 0, D3DGETDATA_FLUSH) == S_FALSE)
-			{
-				if ((count % 2) == 0) {
-					Sleep(0);
-				}
-				++count;
-			}
+		if (!flush_query_) {
+			return false;
+		}		
+		if (FAILED(flush_query_->Issue(D3DISSUE_END))) {
+			return false;
 		}
 
+		auto const start = time_now();
+		uint32_t count = 1;
+		while (flush_query_->GetData(NULL, 0, D3DGETDATA_FLUSH) == S_FALSE)
+		{
+			if ((count % 2) == 0) {
+				Sleep(0);
+			}
+			++count;
+
+			// no way this should take more than 1 second
+			if ((time_now() - start) > 1000000) 
+			{
+				log_message("timeout waiting for D3D9 flush\n");
+				return false;
+			}
+		}
+		return true;
 	}
 
 

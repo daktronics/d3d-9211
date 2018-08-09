@@ -1,4 +1,5 @@
 #include "scene.h"
+#include "util.h"
 
 #include <list>
 #include <mutex>
@@ -10,94 +11,96 @@ using namespace std;
 
 namespace {
 
+	class BlockingQueue
+	{
+	private:
+		list<shared_ptr<ISurface>> queue_;
+		condition_variable signal_;
+		mutex mutable lock_;
+
+	public:
+
+		void push(std::shared_ptr<ISurface> const& surface)
+		{
+			if (surface)
+			{
+				lock_guard<mutex> guard(lock_);
+				queue_.push_back(surface);
+				signal_.notify_all();
+			}
+		}
+
+		shared_ptr<ISurface> pop(uint32_t timeout_ms)
+		{
+			for (;;)
+			{
+				{
+					lock_guard<mutex> guard(lock_);
+					if (!queue_.empty())
+					{
+						auto const s = queue_.front();
+						queue_.pop_front();
+						return s;
+					}
+				}
+
+				unique_lock<mutex> lock(lock_);
+				if (!signal_.wait_for(lock, timeout_ms * 1ms,
+					[&]() { return (queue_.size() > 0); })) 
+				{
+					break;
+				}
+			}
+			return nullptr;
+		}
+	};
+
 	//
 	// surface queue implementation for exchange - not specific
 	// to either Direct3D 9 or 11
 	//
-	class SurfaceQueue : public ISurfaceQueue
+	class SurfaceQueue : public ISurfaceQueue, 
+						public enable_shared_from_this<SurfaceQueue>
 	{
 	private:
-
-		list<shared_ptr<ISurface>> pool_;
-		list<shared_ptr<ISurface>> due_;
-		condition_variable signal_;
-		mutex mutable lock_;
+		BlockingQueue due_;
+		BlockingQueue pool_;
 
 	public:
 		SurfaceQueue()
 		{
 		}
-
-		void push(std::shared_ptr<ISurface> const& surface) override
-		{
-			if (surface)
-			{
-				lock_guard<mutex> guard(lock_);
-				due_.push_back(surface);
-				signal_.notify_all();
-			}
+		
+		void produce(std::shared_ptr<ISurface> const& surface) override {
+			due_.push(surface);
 		}
 
-		shared_ptr<ISurface> pop() override
+		shared_ptr<ISurface> consume(uint32_t timeout_ms) override 
 		{
-			for (;;)
-			{
-				{
-					lock_guard<mutex> guard(lock_);
-					if (!due_.empty()) 
-					{
-						auto const s = due_.front();
-						due_.pop_front();
-						return s;
-					}
-				}
-
-				unique_lock<mutex> lock(lock_);
-				if (!signal_.wait_for(lock, 100ms, [&]() { return (due_.size() > 0);})) {
-					break;
-				}
+			auto const surf = due_.pop(timeout_ms);
+			if (!surf) {
+				log_message("timeout waiting for consume\n");
 			}
-
-			return nullptr;
+			return surf;
 		}
 
 		// return a surface to the pool for re-use
 		// (consumers should call this when done with a surface they popped)
 		//
-		void checkin(std::shared_ptr<ISurface> const& surface) override
-		{
-			if (surface)
-			{
-				lock_guard<mutex> guard(lock_);
-				pool_.push_back(surface);
-				signal_.notify_all();
-			}
+		void checkin(std::shared_ptr<ISurface> const& surface) override {
+			pool_.push(surface);
 		}
 
 		// get a free surface to the pool for writing
 		// (producers should call this when they want to write to a new surface)
 		//
-		shared_ptr<ISurface> checkout() override
+		shared_ptr<ISurface> checkout(uint32_t timeout_ms) override
 		{
-			for (;;)
-			{
-				{
-					lock_guard<mutex> guard(lock_);
-					if (!pool_.empty())
-					{
-						auto const s = pool_.front();
-						pool_.pop_front();
-						return s;
-					}
-				}
-
-				unique_lock<mutex> lock(lock_);
-				if (!signal_.wait_for(lock, 100ms, [&]() { return (pool_.size() > 0); })) {
-					break;
-				}
+			auto const surf = pool_.pop(timeout_ms);
+			if (!surf) {
+				log_message("timeout waiting for checkout\n");
 			}
-
-			return nullptr;
+			return surf;
 		}
 	};
 }

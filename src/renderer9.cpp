@@ -58,7 +58,7 @@ namespace {
 
 		void render() override
 		{
-			auto const target = queue_->checkout();
+			auto const target = queue_->checkout(100);
 			if (target)
 			{
 				device_->clear(0.0f, 0.0f, 0.0f, 0.0f);
@@ -76,7 +76,7 @@ namespace {
 				device_->flush();
 
 				// place on queue so a producer will be notified
-				queue_->push(target);
+				queue_->produce(target);
 			}
 
 			device_->end_scene();			

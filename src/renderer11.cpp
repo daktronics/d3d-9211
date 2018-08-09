@@ -52,7 +52,7 @@ namespace {
 				geometry_ = device_->create_quad(0.0f, 0.0f, 1.0f, 1.0f, false);
 			}
 
-			auto const surface = queue_->pop();
+			auto const surface = queue_->consume(100);
 			if (surface)
 			{
 				surface_ = surface;
