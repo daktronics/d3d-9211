@@ -11,6 +11,8 @@
 #define _WIN32_WINNT 0x0601
 #endif
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <windows.h>
 #include <objbase.h>
 #include <Shellapi.h>

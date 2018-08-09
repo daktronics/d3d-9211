@@ -1,3 +1,4 @@
 # cmake generated directories
 /bin
 /build
+*.aps
