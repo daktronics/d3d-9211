@@ -18,7 +18,6 @@ namespace d3d9 {
 	{
 		D3DDEVICE_CREATION_PARAMETERS params = {};
 		device_->GetCreationParameters(&params);
-
 		IDirect3D9* parent = nullptr;
 		device_->GetDirect3D(&parent);
 		if (parent) 
@@ -28,9 +27,23 @@ namespace d3d9 {
 			parent->Release();
 			return id.Description;
 		}
-
 		return "n/a";
 	}
+
+	void Device::clear(float red, float green, float blue, float alpha)
+	{
+		auto const color = D3DCOLOR_COLORVALUE(red, green, blue, alpha);
+
+		device_->Clear(0, nullptr, D3DCLEAR_TARGET, color, 1.0f, 0);
+	}
+
+	void Device::present()
+	{
+		device_->Present(nullptr, nullptr, nullptr, nullptr);
+	}
+
+
+
 
 	shared_ptr<Device> create_device(HWND window)
 	{

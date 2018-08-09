@@ -51,7 +51,8 @@ namespace {
 }
 
 
-shared_ptr<Consumer> create_consumer(void* native_window)
+shared_ptr<Consumer> create_consumer(void* native_window, 
+	shared_ptr<Producer> const& /*producer*/)
 {
 	auto const dev = d3d11::create_device();
 	if (!dev) {

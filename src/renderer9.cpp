@@ -28,10 +28,12 @@ namespace {
 
 		void render() override
 		{
+			device_->clear(0.0f, 0.0f, 1.0f, 1.0f);
 		}
 
 		void present(int32_t) override
 		{
+			device_->present();
 		}
 
 	};

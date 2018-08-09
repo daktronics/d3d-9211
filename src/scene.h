@@ -33,4 +33,6 @@ class Consumer : public IScene
 
 
 std::shared_ptr<Producer> create_producer(void* native_window);
-std::shared_ptr<Consumer> create_consumer(void* native_window);
+
+std::shared_ptr<Consumer> create_consumer(
+	void* native_window, std::shared_ptr<Producer> const& producer);

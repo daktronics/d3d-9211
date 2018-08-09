@@ -17,6 +17,10 @@ namespace d3d9 {
 	//
 	class Device
 	{
+	private:
+		HMODULE _lib_compiler;
+		std::shared_ptr<IDirect3DDevice9Ex> const device_;
+
 	public:
 		Device(IDirect3DDevice9Ex*);
 
@@ -25,6 +29,9 @@ namespace d3d9 {
 		operator IDirect3DDevice9Ex*() {
 			return device_.get();
 		}
+
+		void clear(float red, float green, float blue, float alpha);
+		void present();
 
 		//std::shared_ptr<SwapChain> create_swapchain(HWND, int width=0, int height=0);
 		
@@ -57,9 +64,7 @@ namespace d3d9 {
 		//			std::string const& entry_point, 
 		//			std::string const& model);
 
-		HMODULE _lib_compiler;
-
-		std::shared_ptr<IDirect3DDevice9Ex> const device_;
+		
 	};
 
 	

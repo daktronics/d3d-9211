@@ -69,14 +69,14 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	}
 
 	auto const producer = create_producer(win_preview);
-	auto const consumer = create_consumer(win_main);
+	auto const consumer = create_consumer(win_main, producer);
 
 	// make the windows visible now that we have D3D components ready
 	ShowWindow(win_main, SW_NORMAL);
 	ShowWindow(win_preview, SW_NORMAL);
 
 	// load keyboard accelerators
-	HACCEL accel_table = 
+	auto const accel_table = 
 		LoadAccelerators(instance, MAKEINTRESOURCE(IDR_APPLICATION));
 
 	//auto ctx = device->immedidate_context();
@@ -127,8 +127,6 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 					swapchain->resize(width, height);
 				}
 			}*/
-
-
 		}
 	}
 	
