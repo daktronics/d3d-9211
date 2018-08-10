@@ -65,7 +65,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 
 	assets->generate(width, height);
 
-	auto producer = create_producer(win_preview, width, height);
+	auto producer = create_producer(win_preview, width, height, assets);
 	auto consumer = create_consumer(win_main, width, height, producer);
 
 	// make the windows visible now that we have D3D components ready

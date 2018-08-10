@@ -43,6 +43,36 @@ namespace {
 		return "";
 	}
 
+	class Image : public IImage
+	{
+	private:
+		shared_ptr<void> const buffer_;
+		uint32_t const width_;
+		uint32_t const height_;
+		uint32_t const stride_;
+
+	public:
+		Image(shared_ptr<void> const& buffer, 
+			uint32_t width, uint32_t height, uint32_t stride)
+			: buffer_(buffer)
+			, width_(width)
+			, height_(height)
+			, stride_(stride) {
+		}
+		
+		uint32_t width() const { return width_; }
+		uint32_t height() const { return height_; }
+
+		void* lock(uint32_t& stride) {
+			stride = stride_;
+			return buffer_.get();
+		}
+
+		void unlock() {
+		}
+	};
+
+
 	class Assets : public IAssets
 	{
 	private:
@@ -64,11 +94,16 @@ namespace {
 		
 		void generate(uint32_t width, uint32_t height) override
 		{
-			auto canvas = generate_meter("Direct3D9", width, height);
-			if (canvas)
-			{
+			auto canvas = generate_transparent(16, 16);
+			if (canvas) {
+				save_canvas(canvas, get_temp_filename("transparent.png"));
+			}
+
+			canvas = generate_meter("Direct3D9", width, height);
+			if (canvas) {
 				save_canvas(canvas, get_temp_filename("d3d9.png"));
 			}
+
 		}
 
 		shared_ptr<string> locate(std::string const& filename) override
@@ -78,6 +113,103 @@ namespace {
 				return make_shared<string>(path);
 			}
 			return nullptr;
+		}
+
+		shared_ptr<IImage> load_image(
+			shared_ptr<std::string> const& filename) override
+		{
+			if (!filename) {
+				return nullptr;
+			}
+
+			auto utf16 = to_utf16(*filename);
+
+			IWICBitmapDecoder* pdec = nullptr;
+			auto hr = wic_->CreateDecoderFromFilename(
+				utf16.c_str(),
+				nullptr,
+				GENERIC_READ,
+				WICDecodeMetadataCacheOnDemand,
+				&pdec);
+			if (FAILED(hr)) {
+				return nullptr;
+			}
+
+			auto const decoder = to_com_ptr(pdec);
+
+			IWICBitmapFrameDecode* pfrm = nullptr;
+			hr = decoder->GetFrame(0, &pfrm);
+			if (FAILED(hr)) {
+				return nullptr;
+			}
+
+			auto const frame = to_com_ptr(pfrm);
+
+			IWICFormatConverter* pcnv = nullptr;
+			hr = wic_->CreateFormatConverter(&pcnv);
+			if (FAILED(hr)) {
+				return nullptr;
+			}
+			auto const converter = to_com_ptr(pcnv);
+
+			hr = converter->Initialize(
+				frame.get(), GUID_WICPixelFormat32bppPRGBA,
+				WICBitmapDitherTypeNone, nullptr, 0.0f, WICBitmapPaletteTypeCustom);
+			if (FAILED(hr)) {
+				return nullptr;
+			}
+
+			UINT width, height;
+			frame->GetSize(&width, &height);
+
+			uint32_t stride = width * 4;
+			uint32_t cb = height * stride;
+
+			shared_ptr<BYTE> buffer(
+				reinterpret_cast<BYTE*>(malloc(cb)), free);
+
+			hr = converter->CopyPixels(nullptr, stride, cb, buffer.get());
+			if (SUCCEEDED(hr)) {
+				return make_shared<Image>(buffer, width, height, stride);
+			}
+			return nullptr;
+		}
+
+		//
+		// draw a simple checker-board image for showing transparency
+		//
+		shared_ptr<IWICBitmap> generate_transparent(uint32_t width, uint32_t height)
+		{
+			auto const canvas = create_canvas(width, height);
+			auto const ctx = create_context(canvas);
+			if (!ctx) {
+				return nullptr;
+			}
+
+			ctx->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+
+			ctx->BeginDraw();
+			ctx->SetTransform(D2D1::IdentityMatrix());
+			ctx->Clear(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f));
+
+			auto const brush = create_solid_brush(ctx, D2D1::ColorF(0.8f, 0.8f, 0.8f, 1.0f));
+
+			D2D1_RECT_F box;
+
+			box.left = width / 2.0f;
+			box.top = 0.0f;
+			box.right = box.left + (width / 2.0f);
+			box.bottom = box.top + (height / 2.0f);
+			ctx->FillRectangle(box, brush.get());
+
+			box.left = 0.0f;
+			box.top = height / 2.0f;
+			box.right = box.left + (width / 2.0f);
+			box.bottom = box.top + (height / 2.0f);
+			ctx->FillRectangle(box, brush.get());
+
+			ctx->EndDraw();
+			return canvas;
 		}
 
 		shared_ptr<IWICBitmap> generate_meter(string const& title, uint32_t width, uint32_t height)

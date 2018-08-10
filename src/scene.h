@@ -1,7 +1,6 @@
 #pragma once
 
-#include <memory>
-#include <string>
+#include "assets.h"
 
 //
 // surfaces (textures) are exchanged between producers and consumers
@@ -79,7 +78,8 @@ std::shared_ptr<ISurfaceQueue> create_surface_queue();
 std::shared_ptr<IScene> create_producer(
 	void* native_window, 
 	uint32_t width, 
-	uint32_t height);
+	uint32_t height,
+	std::shared_ptr<IAssets> const& assets);
 
 std::shared_ptr<IScene> create_consumer(
 	void* native_window,

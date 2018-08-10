@@ -263,19 +263,26 @@ namespace {
 	class Renderer : public IScene
 	{
 	private:
+		shared_ptr<IAssets> const assets_;
 		shared_ptr<IDirect3DDevice9Ex> const device_;
 		shared_ptr<FrameBuffer> const frame_buffer_;
 		shared_ptr<ISurfaceQueue> const queue_;
 		shared_ptr<IDirect3DQuery9> flush_query_;
 		shared_ptr<Quad> quad_preview_;
 		shared_ptr<Quad> quad_spinner_;
+		shared_ptr<Quad> quad_pattern_;
+		shared_ptr<Texture2D> pattern_;
+		
 		float spin_angle_;
 
 	public:
-		Renderer(shared_ptr<IDirect3DDevice9Ex> const& device,
+		Renderer(
+			shared_ptr<IAssets> const& assets,
+			shared_ptr<IDirect3DDevice9Ex> const& device,
 			shared_ptr<FrameBuffer> const& frame_buffer,
 			shared_ptr<ISurfaceQueue> const& queue)
-			: device_(device)
+			: assets_(assets)
+			, device_(device)
 			, frame_buffer_(frame_buffer)
 			, queue_(queue)
 		{
@@ -328,7 +335,7 @@ namespace {
 			clear(0.0f, 0.0f, 0.0f, 0.0f);
 			
 			device_->BeginScene();
-
+			
 			auto const w = width();
 			auto const h = height();
 			
@@ -348,7 +355,7 @@ namespace {
 			{
 				buffer = frame_buffer_->bind(target->share_handle());
 					
-				clear(0.0f, 0.0f, 1.0f, 1.0f);
+				clear(0.0f, 0.0f, 0.0f, 0.0f);
 	
 				render_scene();
 					
@@ -386,12 +393,42 @@ namespace {
 				quad_preview_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
 			}
 
+			// load pattern to show transparency
+			if (!pattern_) 
+			{
+				pattern_ = load_texture("transparent.png");
+				if (!quad_pattern_)
+				{
+					if (pattern_) 
+					{
+						float u = width() / float(pattern_->width());
+						float v = height() / float(pattern_->height());
+						quad_pattern_ = create_quad(0.0f, 0.0f, float(width()), float(height()), u, v);
+					}			
+				}
+			}
+
 			D3DMATRIX mworld;
 			matrix_identity(mworld);
 			device_->SetTransform(D3DTS_WORLD, &mworld);
 
+			// draw transparency pattern if we have one
+			if (quad_pattern_ && pattern_)
+			{
+				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+				device_->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
+				quad_pattern_->draw(pattern_);
+			}
+
+			// draw the current frame to our preview (window swap chain)
 			if (quad_preview_)
 			{
+				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+				device_->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
+				device_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+				device_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 				quad_preview_->draw(texture);			
 			}
 		}
@@ -433,7 +470,8 @@ namespace {
 			return true;
 		}
 
-		shared_ptr<Quad> create_quad(float x, float y, float w, float h)
+		shared_ptr<Quad> create_quad(
+			float x, float y, float w, float h, float u=1.0f, float v=1.0f)
 		{
 			IDirect3DVertexBuffer9* vb = nullptr;
 			auto const hr = device_->CreateVertexBuffer(
@@ -452,9 +490,9 @@ namespace {
 			VERTEX vertices[] =
 			{
 				{ x, y, 0.5f,         color, 0.0f, 0.0f },
-				{ x + w, y, 0.5f,     color, 1.0f, 0.0f },
-				{ x, y + h, 0.5f,     color, 0.0f, 1.0f },
-			   { x + w, y + h, 0.5f, color, 1.0f, 1.0f }
+				{ x + w, y, 0.5f,     color, u, 0.0f },
+				{ x, y + h, 0.5f,     color, 0.0f, v },
+			   { x + w, y + h, 0.5f, color, u, v }
 			};
 
 			void* p = nullptr;
@@ -495,6 +533,64 @@ namespace {
 			if (quad_spinner_) {
 				quad_spinner_->draw(nullptr);			
 			}
+		}
+
+		shared_ptr<Texture2D> load_texture(string const& key)
+		{
+			if (!assets_) {
+				return nullptr;
+			}
+
+			auto const path = assets_->locate(key);
+			auto const img = assets_->load_image(path);
+			if (!img) {
+				return nullptr;
+			}
+
+			auto const w = img->width();
+			auto const h = img->height();
+
+			IDirect3DTexture9* texture = nullptr;			
+			auto hr = device_->CreateTexture(
+				w, h, 1,
+				D3DUSAGE_DYNAMIC,
+				D3DFMT_A8R8G8B8,
+				D3DPOOL_DEFAULT,
+				&texture,
+				nullptr);
+			if (FAILED(hr)) {
+				return nullptr;
+			}
+
+			D3DLOCKED_RECT lock;
+			hr = texture->LockRect(0, &lock, nullptr, D3DLOCK_NOSYSLOCK);
+			if (SUCCEEDED(hr)) 
+			{
+				uint32_t src_stride;
+				uint8_t* src = reinterpret_cast<uint8_t*>(img->lock(src_stride));
+				if (src)
+				{
+					if (src_stride == lock.Pitch)
+					{
+						memcpy(lock.pBits, src, lock.Pitch * h);					
+					}
+					else 
+					{
+						size_t cb = src_stride < uint32_t(lock.Pitch) ? src_stride : lock.Pitch;
+						uint8_t* dst = reinterpret_cast<uint8_t*>(lock.pBits);
+						for (size_t y = 0; y < h; ++y)
+						{
+							memcpy(dst, src, cb);
+							src += src_stride;
+							dst += lock.Pitch;
+						}
+					}
+					img->unlock();				
+				}
+				texture->UnlockRect(0);
+			}
+
+			return make_shared<Texture2D>(device_, texture, nullptr);
 		}
 
 	};
@@ -567,7 +663,8 @@ shared_ptr<FrameBuffer> create_frame_buffer(
 	return nullptr;
 }
 
-shared_ptr<IScene> create_producer(void* native_window, uint32_t width, uint32_t height)
+shared_ptr<IScene> create_producer(
+	void* native_window, uint32_t width, uint32_t height, shared_ptr<IAssets> const& assets)
 {
 	auto const dev = create_device((HWND)native_window, width, height);
 	if (!dev) {
@@ -587,7 +684,7 @@ shared_ptr<IScene> create_producer(void* native_window, uint32_t width, uint32_t
 		queue->checkin(swapchain->buffer(n));			
 	}
 	
-	auto const producer = make_shared<Renderer>(dev, swapchain, queue);
+	auto const producer = make_shared<Renderer>(assets, dev, swapchain, queue);
 	
 	string title("Direct3D9 Producer");
 	title.append(" - [gpu: ");
