@@ -36,6 +36,24 @@ namespace d3d11 {
 	{
 	}
 
+	uint32_t SwapChain::width() const
+	{
+		DXGI_SWAP_CHAIN_DESC desc;
+		if (SUCCEEDED(swapchain_->GetDesc(&desc))) {
+			return desc.BufferDesc.Width;
+		}
+		return 0;
+	}
+
+	uint32_t SwapChain::height() const
+	{
+		DXGI_SWAP_CHAIN_DESC desc;
+		if (SUCCEEDED(swapchain_->GetDesc(&desc))) {
+			return desc.BufferDesc.Height;
+		}
+		return 0;
+	}
+
 	void SwapChain::bind(shared_ptr<Context> const& ctx)
 	{
 		ctx_ = ctx;

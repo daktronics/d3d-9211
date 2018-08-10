@@ -104,6 +104,9 @@ namespace d3d11 {
 				ID3D11SamplerState*,
 				ID3D11BlendState*);
 
+		uint32_t width() const;
+		uint32_t height() const;
+
 		void bind(std::shared_ptr<Context> const& ctx);
 		void unbind();
 

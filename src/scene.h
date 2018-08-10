@@ -21,7 +21,6 @@ private:
 	ISurface& operator=(ISurface const&) = delete;
 };
 
-
 //
 // we're using a queue to exchange work between producers and consumers
 //
@@ -57,7 +56,11 @@ public:
 	IScene() {}
 	virtual ~IScene() {}
 
+	// return a friendly name for the gpu in-use
 	virtual std::string gpu() const = 0;
+
+	virtual uint32_t width() const = 0;
+	virtual uint32_t height() const = 0;
 
 	virtual void tick(double) = 0;
 	virtual void render() = 0;
@@ -73,7 +76,13 @@ private:
 
 std::shared_ptr<ISurfaceQueue> create_surface_queue();
 
-std::shared_ptr<IScene> create_producer(void* native_window);
+std::shared_ptr<IScene> create_producer(
+	void* native_window, 
+	uint32_t width, 
+	uint32_t height);
 
 std::shared_ptr<IScene> create_consumer(
-	void* native_window, std::shared_ptr<IScene> const& producer);
+	void* native_window,
+	uint32_t width,
+	uint32_t height,
+	std::shared_ptr<IScene> const& producer);

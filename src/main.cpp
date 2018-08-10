@@ -19,7 +19,9 @@ extern "C"
 	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 }
 			
-HWND create_window(HINSTANCE instance, int width, int height);
+HWND create_window(HINSTANCE instance);
+void zoom_window(HWND window, shared_ptr<IScene> const& scene, float zoom);
+
 LRESULT CALLBACK wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
 int sync_interval_ = 1;
@@ -42,28 +44,28 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	// this demo uses WIC to load images .. so we need COM
 	ComInitializer com_init;
 
-	uint32_t width = 640;
-	uint32_t height = 360;
+	uint32_t width = 1920;
+	uint32_t height = 1080;
 
 	// create window(s) with our specific size
-	auto const win_main = create_window(instance, width, height);
+	auto const win_main = create_window(instance);
 	if (!IsWindow(win_main)) {
 		assert(0);
 		return 0;
 	}
 
-	auto const win_preview = create_window(instance, width, height);
+	auto const win_preview = create_window(instance);
 	if (!IsWindow(win_preview)) {
 		assert(0);
 		return 0;
 	}
 
-	auto const producer = create_producer(win_preview);
-	auto const consumer = create_consumer(win_main, producer);
+	auto const producer = create_producer(win_preview, width, height);
+	auto const consumer = create_consumer(win_main, width, height, producer);
 
 	// make the windows visible now that we have D3D components ready
-	ShowWindow(win_main, SW_NORMAL);
-	ShowWindow(win_preview, SW_NORMAL);
+	zoom_window(win_main, consumer, 0.5f);
+	zoom_window(win_preview, producer, 0.5f);
 
 	// load keyboard accelerators
 	auto const accel_table = 
@@ -120,7 +122,25 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	return 0;
 }
 
-HWND create_window(HINSTANCE instance, int width, int height)
+void zoom_window(HWND window, shared_ptr<IScene> const& scene, float zoom)
+{
+	// AdjustWindowRect can do something similar
+	RECT rc_outer, rc_inner;
+	GetWindowRect(window, &rc_outer);
+	GetClientRect(window, &rc_inner);
+
+	auto const w = static_cast<int32_t>(scene->width() * zoom);
+	auto const h = static_cast<int32_t>(scene->height() * zoom);
+	
+	SetWindowPos(window, nullptr, 0, 0,
+		w + ((rc_outer.right - rc_outer.left) - (rc_inner.right - rc_inner.left)),
+		h + ((rc_outer.bottom - rc_outer.top) - (rc_inner.bottom - rc_inner.top)),
+		SWP_NOMOVE | SWP_NOZORDER);
+
+	ShowWindow(window, SW_NORMAL);
+}
+
+HWND create_window(HINSTANCE instance)
 {
 	LPCWSTR class_name = L"_main_window_";
 
@@ -144,7 +164,7 @@ HWND create_window(HINSTANCE instance, int width, int height)
 		}
 	}
 
-	auto const hwnd = CreateWindow(class_name,
+	auto const window = CreateWindow(class_name,
 						L"",
 						WS_OVERLAPPEDWINDOW,
 						CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 
@@ -153,17 +173,7 @@ HWND create_window(HINSTANCE instance, int width, int height)
 						instance, 
 						nullptr);
 
-	// AdjustWindowRect can do something similar
-	RECT rc_outer, rc_inner;
-	GetWindowRect(hwnd, &rc_outer);
-	GetClientRect(hwnd, &rc_inner);
-
-	SetWindowPos(hwnd, nullptr, 0, 0, 
-			width + ((rc_outer.right - rc_outer.left) - (rc_inner.right - rc_inner.left)),
-			height + ((rc_outer.bottom - rc_outer.top) - (rc_inner.bottom - rc_inner.top)),
-			SWP_NOMOVE | SWP_NOZORDER);
-
-	return hwnd;
+	return window;
 }
 
 LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)

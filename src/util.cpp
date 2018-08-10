@@ -25,9 +25,11 @@ uint64_t time_now()
 void log_message(const char* msg, ...)
 {
 	// old-school, printf style logging
+	//
+	// not safe - keep it simple
 	if (msg) 
 	{
-		char buff[512];
+		char buff[1024];
 		va_list args;
 		va_start(args, msg);
 		vsprintf(buff, msg, args);

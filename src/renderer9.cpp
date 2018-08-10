@@ -4,9 +4,53 @@
 #include <d3d9.h>
 #include <vector>
 
+#include <directxmath.h>
+
 using namespace std;
 
+#define FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE)
+
 namespace {
+
+	struct VERTEX
+	{
+		float x;
+		float y;
+		float z;
+		float u;
+		float v;
+		DWORD color;
+	};
+
+	//
+	// simply because we're not messing with D3D9X
+	//
+	void matrix_identity(D3DMATRIX& dst)
+	{
+		dst._11 = 1.0f; dst._12 = 0.0f; dst._13 = 0.0f; dst._14 = 0.0f;
+		dst._21 = 0.0f; dst._22 = 1.0f; dst._23 = 0.0f; dst._24 = 0.0f;
+		dst._31 = 0.0f; dst._32 = 0.0f; dst._33 = 1.0f; dst._34 = 0.0f;
+		dst._41 = 0.0f; dst._42 = 0.0f; dst._43 = 0.0f; dst._44 = 1.0f;
+	}
+
+	void matrix_ortho_lh(D3DMATRIX& dst, float w, float h, float zn, float zf)
+	{
+		matrix_identity(dst);
+		dst.m[0][0] = 2.0f / w;
+		dst.m[1][1] = 2.0f / h;
+		dst.m[2][2] = 1.0f / (zf - zn);
+		dst.m[3][2] = zn / (zn - zf);
+	}
+
+	/*void to_matrix_9(DirectX::XMFLOAT4X4 const& src, D3DMATRIX& dst)
+	{
+		for (int32_t i = 0; i < 4; ++i) {
+			for (int32_t j = 0; j < 4; ++j) {
+				dst.m[i][j] = src.m[i][j];
+			}		
+		}
+	}*/
+
 
 	class Texture2D : public ISurface
 	{
@@ -58,6 +102,8 @@ namespace {
 		std::shared_ptr<IDirect3DDevice9Ex> const device_;
 		std::shared_ptr<IDirect3DSurface9> saved_target_;
 		std::vector<std::shared_ptr<Texture2D>> buffers_;
+		uint32_t width_;
+		uint32_t height_;
 
 	public:
 
@@ -65,11 +111,21 @@ namespace {
 			shared_ptr<IDirect3DDevice9Ex> const device,
 			vector<shared_ptr<Texture2D>> const& buffers)
 			: device_(device)
+			, width_(0)
+			, height_(0)
 		{
 			buffers_.assign(buffers.begin(), buffers.end());
+
+			if (!buffers_.empty()) {
+				width_ = buffers.front()->width();
+				height_ = buffers.front()->height();			
+			}
 		}
 
-		void bind(void* target)
+		uint32_t width() const { return width_; }
+		uint32_t height() const { return height_; }
+
+		shared_ptr<Texture2D> bind(void* target)
 		{
 			// save original render-target
 			IDirect3DSurface9* rt = nullptr;
@@ -101,6 +157,8 @@ namespace {
 					}
 				}
 			}
+
+			return texture;
 		}
 		
 		void unbind()
@@ -165,6 +223,7 @@ namespace {
 			, frame_buffer_(frame_buffer)
 			, queue_(queue)
 		{
+			device_->SetRenderState(D3DRS_LIGHTING, 0);
 		}
 
 		string gpu() const override 
@@ -181,6 +240,14 @@ namespace {
 				return id.Description;
 			}
 			return "n/a";
+		}
+
+		uint32_t width() const { 
+			return frame_buffer_ ? frame_buffer_->width() : 0;
+		}
+		
+		uint32_t height() const { 
+			return frame_buffer_ ? frame_buffer_->height() : 0;
 		}
 
 		void tick(double) override
@@ -202,13 +269,39 @@ namespace {
 
 				device_->BeginScene();
 
+				auto const w = width();
+				auto const h = height();
+
+				D3DMATRIX mworld;
+				matrix_identity(mworld);
+
+				D3DMATRIX mview;
+				matrix_identity(mview);
+				mview._41 = (-(w / 2.0f));
+				mview._42 = (-(h / 2.0f));
+
+				D3DMATRIX mproj;
+				matrix_ortho_lh(mproj, w * 1.0f, h * -1.0f, 0.0f, 1.0f);
+
+				device_->SetTransform(D3DTS_PROJECTION, &mproj);
+				device_->SetTransform(D3DTS_VIEW, &mview);
+
+				shared_ptr<Texture2D> buffer;
+				
 				{
-					frame_buffer_->bind(target->share_handle());
+					buffer = frame_buffer_->bind(target->share_handle());
 					
 					clear(0.0f, 0.0f, 1.0f, 1.0f);
 
+					device_->SetTransform(D3DTS_WORLD, &mworld);
+					
+					render_scene();
+					
 					frame_buffer_->unbind();
 				}
+
+				// we could add a property to disable preview
+				preview(buffer);
 
 				// ensure the D3D9 device is done writing to our texture buffer
 				flush();
@@ -227,6 +320,15 @@ namespace {
 
 		shared_ptr<ISurfaceQueue> queue() const {
 			return queue_;
+		}
+
+		//
+		// render the surface to our window swapchain so we can 
+		// preview it on-screen
+		//
+		void preview(shared_ptr<Texture2D> const&)
+		{
+
 		}
 		
 		bool flush()
@@ -266,11 +368,25 @@ namespace {
 			return true;
 		}
 
+		void render_scene()
+		{
+			// select which vertex format we are using
+			//d3ddev->SetFVF(CUSTOMFVF);
+
+			// select the vertex buffer to display
+			//d3ddev->SetStreamSource(0, v_buffer, 0, sizeof(CUSTOMVERTEX));
+
+			// copy the vertex buffer to the back buffer
+			//d3ddev->DrawPrimitive(D3DPT_TRIANGLELIST, 0, 1);
+		}
+
 	};
 }
 
-
-shared_ptr<IDirect3DDevice9Ex> create_device(HWND window)
+//
+// create a D3D9Ex device instance
+//
+shared_ptr<IDirect3DDevice9Ex> create_device(HWND window, uint32_t width, uint32_t height)
 {
 	IDirect3D9Ex* d3d9 = nullptr;
 	auto hr = Direct3DCreate9Ex(D3D_SDK_VERSION, &d3d9);
@@ -282,6 +398,8 @@ shared_ptr<IDirect3DDevice9Ex> create_device(HWND window)
 	pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
 	pp.hDeviceWindow = window;
 	pp.Windowed = TRUE;
+	pp.BackBufferHeight = height;
+	pp.BackBufferWidth = width;
 
 	IDirect3DDevice9Ex* device = nullptr;
 	hr = d3d9->CreateDeviceEx(
@@ -327,21 +445,15 @@ shared_ptr<FrameBuffer> create_frame_buffer(
 	return nullptr;
 }
 
-shared_ptr<IScene> create_producer(void* native_window)
+shared_ptr<IScene> create_producer(void* native_window, uint32_t width, uint32_t height)
 {
-	auto const dev = create_device((HWND)native_window);
+	auto const dev = create_device((HWND)native_window, width, height);
 	if (!dev) {
 		return nullptr;
 	}
 
-	RECT rc;
-	GetClientRect((HWND)native_window, &rc);
-
-	auto const w = rc.right - rc.left;
-	auto const h= rc.bottom - rc.top;
-
 	// create shared buffers for delivery to a consumer
-	auto const swapchain = create_frame_buffer(dev, 3, w, h);
+	auto const swapchain = create_frame_buffer(dev, 3, width, height);
 	if (!swapchain) {
 		return nullptr;
 	}

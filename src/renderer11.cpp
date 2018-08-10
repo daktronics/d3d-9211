@@ -14,12 +14,9 @@ namespace {
 		shared_ptr<d3d11::Device> const device_;
 		shared_ptr<d3d11::SwapChain> const swapchain_;
 		shared_ptr<ISurfaceQueue> const queue_;
-
 		shared_ptr<d3d11::Geometry> geometry_;
-		shared_ptr<d3d11::Effect> effect_;
-		
+		shared_ptr<d3d11::Effect> effect_;		
 		shared_ptr<ISurface> surface_;
-
 		map<void*, shared_ptr<d3d11::Texture2D>> textures_;		
 
 	public:
@@ -34,6 +31,14 @@ namespace {
 
 		string gpu() const override {
 			return device_->adapter_name();
+		}
+
+		uint32_t width() const override {
+			return swapchain_ ? swapchain_->width() : 0;
+		}
+
+		uint32_t height() const override {
+			return swapchain_ ? swapchain_->height() : 0;
 		}
 
 		void tick(double) override
@@ -107,7 +112,10 @@ namespace {
 }
 
 
-shared_ptr<IScene> create_consumer(void* native_window, 
+shared_ptr<IScene> create_consumer(
+	void* native_window, 
+	uint32_t width,
+	uint32_t height,
 	shared_ptr<IScene> const& producer)
 {
 	auto const dev = d3d11::create_device();
