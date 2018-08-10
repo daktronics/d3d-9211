@@ -8,8 +8,6 @@
 
 using namespace std;
 
-#define PI 3.14159265358979323846
-
 namespace {
 
 	bool file_exists(std::string const& path)
@@ -101,7 +99,7 @@ namespace {
 
 			canvas = generate_meter("Direct3D9", width, height);
 			if (canvas) {
-				save_canvas(canvas, get_temp_filename("d3d9.png"));
+				save_canvas(canvas, get_temp_filename("d3d9_bg.png"));
 			}
 
 		}
@@ -153,7 +151,7 @@ namespace {
 			auto const converter = to_com_ptr(pcnv);
 
 			hr = converter->Initialize(
-				frame.get(), GUID_WICPixelFormat32bppPRGBA,
+				frame.get(), GUID_WICPixelFormat32bppPBGRA,
 				WICBitmapDitherTypeNone, nullptr, 0.0f, WICBitmapPaletteTypeCustom);
 			if (FAILED(hr)) {
 				return nullptr;

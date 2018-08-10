@@ -4,6 +4,8 @@
 #include <string>
 #include <memory>
 
+#define PI 3.14159265358979323846
+
 uint64_t time_now();
 
 void log_message(const char*, ...);

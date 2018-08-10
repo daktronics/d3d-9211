@@ -268,9 +268,14 @@ namespace {
 		shared_ptr<FrameBuffer> const frame_buffer_;
 		shared_ptr<ISurfaceQueue> const queue_;
 		shared_ptr<IDirect3DQuery9> flush_query_;
-		shared_ptr<Quad> quad_preview_;
-		shared_ptr<Quad> quad_spinner_;
-		shared_ptr<Quad> quad_pattern_;
+		
+		shared_ptr<Quad> bg_quad_;
+		shared_ptr<Texture2D> bg_;
+
+		shared_ptr<Quad> preview_quad_;
+		shared_ptr<Quad> spinner_quad_;
+		
+		shared_ptr<Quad> pattern_quad_;
 		shared_ptr<Texture2D> pattern_;
 		
 		float spin_angle_;
@@ -316,8 +321,7 @@ namespace {
 
 		void tick(double) override
 		{
-			spin_angle_ = spin_angle_ + 0.05f;
-
+			spin_angle_ = spin_angle_ + static_cast<float>(1 * (PI / 180.0));
 		}
 
 		void clear(float red, float green, float blue, float alpha)
@@ -389,21 +393,21 @@ namespace {
 		//
 		void preview(shared_ptr<Texture2D> const& texture)
 		{
-			if (!quad_preview_) {
-				quad_preview_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
+			if (!preview_quad_) {
+				preview_quad_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
 			}
 
 			// load pattern to show transparency
 			if (!pattern_) 
 			{
 				pattern_ = load_texture("transparent.png");
-				if (!quad_pattern_)
+				if (!pattern_quad_)
 				{
 					if (pattern_) 
 					{
 						float u = width() / float(pattern_->width());
 						float v = height() / float(pattern_->height());
-						quad_pattern_ = create_quad(0.0f, 0.0f, float(width()), float(height()), u, v);
+						pattern_quad_ = create_quad(0.0f, 0.0f, float(width()), float(height()), u, v);
 					}			
 				}
 			}
@@ -413,23 +417,21 @@ namespace {
 			device_->SetTransform(D3DTS_WORLD, &mworld);
 
 			// draw transparency pattern if we have one
-			if (quad_pattern_ && pattern_)
+			if (pattern_quad_ && pattern_)
 			{
 				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
 				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
-				device_->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
-				quad_pattern_->draw(pattern_);
+				enable_blending(false);
+				pattern_quad_->draw(pattern_);
 			}
 
 			// draw the current frame to our preview (window swap chain)
-			if (quad_preview_)
+			if (preview_quad_)
 			{
 				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
 				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
-				device_->SetRenderState(D3DRS_ALPHABLENDENABLE, 1);
-				device_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-				device_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-				quad_preview_->draw(texture);			
+				enable_blending(false);
+				preview_quad_->draw(texture);
 			}
 		}
 		
@@ -504,17 +506,46 @@ namespace {
 			return make_shared<Quad>(device_, vb);
 		}
 
+		void enable_blending(bool enable)
+		{
+			device_->SetRenderState(D3DRS_ALPHABLENDENABLE, enable ? 1 : 0);
+			device_->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+			device_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+		}
+
 		void render_scene()
 		{
-			float bar_w = height() * 0.80f;
-			float bar_h = height() * 0.04f;
+			// load background image
+			if (!bg_)
+			{
+				bg_ = load_texture("d3d9_bg.png");
+				if (!bg_quad_ && bg_) {
+					bg_quad_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
+				}
+			}
 
-			if (!quad_spinner_) {
-				quad_spinner_ = create_quad(0.0f - (bar_w / 2), 0.0f - (bar_h / 2), bar_w, bar_h);
+			if (!spinner_quad_) 
+			{
+				float bar_w = height() * 0.75f;
+				float bar_h = 20.0f;
+
+				spinner_quad_ = create_quad(
+					0.0f - (bar_w / 2), 0.0f - (bar_h / 2), bar_w, bar_h);
 			}
 
 			D3DMATRIX mworld;
 			matrix_identity(mworld);
+
+			device_->SetTransform(D3DTS_WORLD, &mworld);
+
+			// draw background image if we have one
+			if (bg_quad_ && bg_)
+			{
+				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+				enable_blending(true);
+				bg_quad_->draw(bg_);
+			}
 
 			D3DMATRIX mtrans;
 			matrix_translation(mtrans,
@@ -530,8 +561,8 @@ namespace {
 
 			device_->SetTransform(D3DTS_WORLD, &mworld);
 
-			if (quad_spinner_) {
-				quad_spinner_->draw(nullptr);			
+			if (spinner_quad_) {
+				spinner_quad_->draw(nullptr);
 			}
 		}
 
