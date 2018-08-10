@@ -1,8 +1,8 @@
 
 set(ALL_SRCS
 	app.rc
-	d3d9.cpp
-	d3d9.h
+	d3d.cpp
+	d3d.h	
 	d3d11.cpp
 	d3d11.h	
 	main.cpp

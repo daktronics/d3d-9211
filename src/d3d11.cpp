@@ -1,7 +1,6 @@
 #include "d3d11.h"
 #include "util.h"
 
-#include <d3dcompiler.h>
 #include <directxmath.h>
 
 using namespace std;
@@ -297,9 +296,7 @@ namespace d3d11 {
 
 	Device::Device(ID3D11Device* pdev, ID3D11DeviceContext* pctx)
 		: device_(to_com_ptr(pdev))
-		, ctx_(make_shared<Context>(pctx))
-	{
-		_lib_compiler = LoadLibrary(L"d3dcompiler_47.dll");
+		, ctx_(make_shared<Context>(pctx)) {
 	}
 
 	string Device::adapter_name() const
@@ -620,69 +617,6 @@ namespace d3d11 {
 		return make_shared<Texture2D>(tex, srv);
 	}
 
-
-	shared_ptr<ID3DBlob> Device::compile_shader(
-							string const& source_code,
-							string const& entry_point,
-							string const& model)
-	{
-		if (!_lib_compiler) {
-			return nullptr;
-		}
-
-		typedef HRESULT(WINAPI* PFN_D3DCOMPILE)(
-			LPCVOID, SIZE_T, LPCSTR, const D3D_SHADER_MACRO*,
-			ID3DInclude*, LPCSTR, LPCSTR, UINT, UINT, ID3DBlob**, ID3DBlob**);
-
-		auto const fnc_compile = reinterpret_cast<PFN_D3DCOMPILE>(
-			GetProcAddress(_lib_compiler, "D3DCompile"));
-		if (!fnc_compile) {
-			return nullptr;
-		}
-
-		DWORD flags = D3DCOMPILE_ENABLE_STRICTNESS;
-
-#if defined(NDEBUG)
-		//flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
-		//flags |= D3DCOMPILE_AVOID_FLOW_CONTROL;
-#else
-		flags |= D3DCOMPILE_DEBUG;
-		flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
-		ID3DBlob* blob = nullptr;
-		ID3DBlob* blob_err = nullptr;
-
-		auto const psrc = source_code.c_str();
-		auto const len = source_code.size() + 1;
-		
-		auto const hr = fnc_compile(
-			psrc, len, nullptr, nullptr, nullptr,
-			entry_point.c_str(),
-			model.c_str(),
-			flags, 
-			0, 
-			&blob, 
-			&blob_err);
-
-		if (FAILED(hr))
-		{
-			if (blob_err)
-			{
-				// TODO: log the error
-				blob_err->Release();
-			}
-			return nullptr;
-		}
-
-		if (blob_err) {
-			blob_err->Release();
-		}
-
-		return shared_ptr<ID3DBlob>(blob, [](ID3DBlob* p) { if (p) p->Release(); });
-	}
-
-
 	//
 	// create some basic shaders so we can draw a textured-quad
 	//
@@ -741,7 +675,12 @@ float4 main(VS_OUTPUT input) : SV_Target
 		string const& pixel_entry,
 		string const& pixel_model)
 	{
-		auto const vs_blob = compile_shader(vertex_code, vertex_entry, vertex_model);
+		auto const compiler = d3d::create_compiler();
+		if (!compiler) {
+			return nullptr;
+		}
+
+		auto const vs_blob = compiler->compile(vertex_code, vertex_entry, vertex_model);
 
 		ID3D11VertexShader* vshdr = nullptr;
 		ID3D11InputLayout* layout = nullptr;
@@ -771,7 +710,7 @@ float4 main(VS_OUTPUT input) : SV_Target
 				&layout);
 		}
 
-		auto const ps_blob = compile_shader(pixel_code, pixel_entry, pixel_model);
+		auto const ps_blob = compiler->compile(pixel_code, pixel_entry, pixel_model);
 		ID3D11PixelShader* pshdr = nullptr;
 		if (ps_blob) 
 		{

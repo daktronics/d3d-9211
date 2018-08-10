@@ -37,20 +37,10 @@ public:
 	~ComInitializer() { CoUninitialize(); }
 };
 
-//std::shared_ptr<Composition> composition_;
-
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 {
 	// this demo uses WIC to load images .. so we need COM
 	ComInitializer com_init;
-
-	// create a D3D11 rendering device
-	//auto device = d3d11::create_device();
-	//if (!device) {
-	//	assert(0);
-	//	cef_uninitialize();
-	//	return 0;
-	//}
 
 	uint32_t width = 640;
 	uint32_t height = 360;
@@ -78,8 +68,6 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	// load keyboard accelerators
 	auto const accel_table = 
 		LoadAccelerators(instance, MAKEINTRESOURCE(IDR_APPLICATION));
-
-	//auto ctx = device->immedidate_context();
 
 	auto const start_time = time_now();
 
@@ -110,7 +98,6 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 
 			// our main window is vsync'd for the consumer
 			consumer->present(sync_interval_);
-
 
 			// is there a request to resize ... if so, resize
 			// both the swapchain and the composition

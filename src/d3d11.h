@@ -1,5 +1,7 @@
 #pragma once
 
+#include "d3d.h"
+
 #include <d3d11_1.h>
 #include <memory>
 #include <string>
@@ -85,13 +87,6 @@ namespace d3d11 {
 						std::string const& pixel_model);
 
 	private:
-
-		std::shared_ptr<ID3DBlob> compile_shader(
-					std::string const& source_code, 
-					std::string const& entry_point, 
-					std::string const& model);
-
-		HMODULE _lib_compiler;
 
 		std::shared_ptr<ID3D11Device> const device_;
 		std::shared_ptr<Context> const ctx_;

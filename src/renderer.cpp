@@ -67,8 +67,7 @@ namespace {
 		BlockingQueue pool_;
 
 	public:
-		SurfaceQueue()
-		{
+		SurfaceQueue() {
 		}
 		
 		void produce(std::shared_ptr<ISurface> const& surface) override {
@@ -92,7 +91,7 @@ namespace {
 		}
 
 		// get a free surface to the pool for writing
-		// (producers should call this when they want to write to a new surface)
+		// (producers should call this when they want to render to a new surface)
 		//
 		shared_ptr<ISurface> checkout(uint32_t timeout_ms) override
 		{
