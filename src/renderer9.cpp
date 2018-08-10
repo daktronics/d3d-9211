@@ -339,6 +339,9 @@ namespace {
 			clear(0.0f, 0.0f, 0.0f, 0.0f);
 			
 			device_->BeginScene();
+
+			device_->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+			device_->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
 			
 			auto const w = width();
 			auto const h = height();

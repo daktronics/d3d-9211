@@ -252,7 +252,7 @@ namespace {
 
 			{ // draw tic marks
 
-				auto const format = create_text_format("Lucida Console", radius.y * 0.10f);
+				auto const format = create_text_format("Lucida Console", radius.y * 0.08f);
 
 				auto const width = stroke * 0.75f;
 				auto const len = width * 4;
