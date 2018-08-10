@@ -340,9 +340,6 @@ namespace {
 			
 			device_->BeginScene();
 
-			device_->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-			device_->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-			
 			auto const w = width();
 			auto const h = height();
 			
@@ -422,8 +419,7 @@ namespace {
 			// draw transparency pattern if we have one
 			if (pattern_quad_ && pattern_)
 			{
-				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
-				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+				set_sampler_state(D3DTADDRESS_WRAP);
 				enable_blending(false);
 				pattern_quad_->draw(pattern_);
 			}
@@ -431,9 +427,8 @@ namespace {
 			// draw the current frame to our preview (window swap chain)
 			if (preview_quad_)
 			{
-				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
-				enable_blending(false);
+				set_sampler_state(D3DTADDRESS_CLAMP);
+				enable_blending(true);
 				preview_quad_->draw(texture);
 			}
 		}
@@ -516,6 +511,14 @@ namespace {
 			device_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 		}
 
+		void set_sampler_state(DWORD addressing)
+		{
+			device_->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+			device_->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+			device_->SetSamplerState(0, D3DSAMP_ADDRESSU, addressing);
+			device_->SetSamplerState(0, D3DSAMP_ADDRESSV, addressing);			
+		}
+
 		void render_scene()
 		{
 			// load background image
@@ -544,8 +547,7 @@ namespace {
 			// draw background image if we have one
 			if (bg_quad_ && bg_)
 			{
-				device_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-				device_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+				set_sampler_state(D3DTADDRESS_CLAMP);
 				enable_blending(true);
 				bg_quad_->draw(bg_);
 			}

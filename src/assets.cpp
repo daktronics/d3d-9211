@@ -252,7 +252,8 @@ namespace {
 
 			{ // draw tic marks
 
-				auto const format = create_text_format("Lucida Console", radius.y * 0.08f);
+				auto const format = create_text_format(
+					"Lucida Console", radius.y * 0.08f, DWRITE_FONT_WEIGHT_BOLD);
 
 				auto const width = stroke * 0.75f;
 				auto const len = width * 4;
@@ -402,13 +403,14 @@ namespace {
 			return nullptr;
 		}	
 
-		shared_ptr<IDWriteTextFormat> create_text_format(string const& family, float size)
+		shared_ptr<IDWriteTextFormat> create_text_format(
+			string const& family, float size, DWRITE_FONT_WEIGHT weight=DWRITE_FONT_WEIGHT_REGULAR)
 		{
 			IDWriteTextFormat* format = nullptr;
 			auto const hr = dwrite_->CreateTextFormat(
 				to_utf16(family).c_str(),
 				nullptr,
-				DWRITE_FONT_WEIGHT_REGULAR,
+				weight,
 				DWRITE_FONT_STYLE_NORMAL,
 				DWRITE_FONT_STRETCH_NORMAL,
 				size,

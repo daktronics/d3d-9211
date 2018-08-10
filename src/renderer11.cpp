@@ -51,7 +51,7 @@ namespace {
 
 			d3d11::ScopedBinder<d3d11::SwapChain> bind(ctx, swapchain_);
 
-			swapchain_->clear(1.0f, 0.0f, 0.0f, 1.0f);
+			swapchain_->clear(0.0f, 0.0f, 0.90f, 1.0f);
 
 			if (!geometry_) {
 				geometry_ = device_->create_quad(0.0f, 0.0f, 1.0f, 1.0f, false);
