@@ -1,6 +1,7 @@
 #include "platform.h"
 #include "util.h"
 #include "scene.h"
+#include "assets.h"
 
 #include "resource.h"
 
@@ -60,8 +61,12 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 		return 0;
 	}
 
-	auto const producer = create_producer(win_preview, width, height);
-	auto const consumer = create_consumer(win_main, width, height, producer);
+	auto assets = create_assets();
+
+	assets->generate(width, height);
+
+	auto producer = create_producer(win_preview, width, height);
+	auto consumer = create_consumer(win_main, width, height, producer);
 
 	// make the windows visible now that we have D3D components ready
 	zoom_window(win_main, consumer, 0.5f);
@@ -118,6 +123,11 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 			}*/
 		}
 	}
+
+	// drop before COM is uninitialized
+	producer.reset();
+	consumer.reset();
+	assets.reset();	
 	
 	return 0;
 }

@@ -31,6 +31,28 @@ namespace {
 		dst._41 = 0.0f; dst._42 = 0.0f; dst._43 = 0.0f; dst._44 = 1.0f;
 	}
 
+	void matrix_multiply(D3DMATRIX& dst, D3DMATRIX const& m1, D3DMATRIX const& m2)
+	{
+		D3DMATRIX out;
+		for (int32_t i = 0; i < 4; ++i)
+		{
+			for (int32_t j = 0; j < 4; ++j)
+			{
+				out.m[i][j] = m1.m[i][0] * m2.m[0][j] + m1.m[i][1] *
+					m2.m[1][j] + m1.m[i][2] * m2.m[2][j] + m1.m[i][3] * m2.m[3][j];
+			}
+		}
+		dst = out;
+	}
+
+	void matrix_translation(D3DMATRIX& dst, float x, float y, float z)
+	{
+		matrix_identity(dst);
+		dst.m[3][0] = x;
+		dst.m[3][1] = y;
+		dst.m[3][2] = z;
+	}
+
 	void matrix_ortho_lh(D3DMATRIX& dst, float w, float h, float zn, float zf)
 	{
 		matrix_identity(dst);
@@ -48,28 +70,7 @@ namespace {
 		dst.m[0][1] = sinf(angle);
 		dst.m[1][0] = -sinf(angle);
 	}
-
-	void matrix_translation(D3DMATRIX& dst, float x, float y, float z)
-	{
-		matrix_identity(dst);
-		dst.m[3][0] = x;
-		dst.m[3][1] = y;
-		dst.m[3][2] = z;
-	}
-
-	void matrix_multiply(D3DMATRIX& dst, D3DMATRIX const& m1, D3DMATRIX const& m2)
-	{
-		D3DMATRIX out;
-		for (int32_t i = 0; i < 4; ++i)
-		{
-			for (int32_t j = 0; j < 4; ++j)
-			{
-				out.m[i][j] = m1.m[i][0] * m2.m[0][j] + m1.m[i][1] * 
-					m2.m[1][j] + m1.m[i][2] * m2.m[2][j] + m1.m[i][3] * m2.m[3][j];
-			}
-		}
-		dst = out;
-	}
+		
 
 	class Texture2D : public ISurface
 	{
@@ -86,7 +87,7 @@ namespace {
 			IDirect3DTexture9* texture,
 			void* share_handle)
 			: device_(device)
-			, texture_(texture)
+			, texture_(to_com_ptr(texture))
 			, share_handle_(share_handle)
 		{
 			D3DSURFACE_DESC desc;
@@ -279,7 +280,6 @@ namespace {
 			, queue_(queue)
 		{
 			spin_angle_ = 0.0f;
-
 			device_->SetRenderState(D3DRS_LIGHTING, 0);
 		}
 
@@ -550,7 +550,12 @@ shared_ptr<FrameBuffer> create_frame_buffer(
 		HANDLE share = nullptr;
 		IDirect3DTexture9* texture = nullptr;
 		auto const hr = device->CreateTexture(
-			width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, &share);
+			width, height, 1, 
+			D3DUSAGE_RENDERTARGET, 
+			D3DFMT_A8R8G8B8, 
+			D3DPOOL_DEFAULT, 
+			&texture, 
+			&share);
 		if (SUCCEEDED(hr)) {
 			textures.push_back(make_shared<Texture2D>(device, texture, share));
 		}

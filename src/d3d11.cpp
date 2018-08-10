@@ -556,6 +556,10 @@ namespace d3d11 {
 
 	shared_ptr<Texture2D> Device::open_shared_texture(void* handle)
 	{
+		if (!handle) {
+			return nullptr;
+		}
+
 		ID3D11Texture2D* tex = nullptr;
 		auto hr = device_->OpenSharedResource(
 				handle, __uuidof(ID3D11Texture2D), (void**)(&tex));

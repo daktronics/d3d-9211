@@ -1,6 +1,8 @@
 
 set(ALL_SRCS
 	app.rc
+	assets.h
+	assets.cpp
 	d3d.cpp
 	d3d.h	
 	d3d11.cpp
@@ -24,4 +26,4 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
 source_group("src" FILES ${ALL_SRCS})
 
 # Indicate which libraries to include during the link process.
-target_link_libraries (${PROJECT_NAME} d3d9.lib d3d11.lib Shlwapi.lib)
+target_link_libraries (${PROJECT_NAME} d3d9.lib d3d11.lib d2d1.lib dwrite.lib Shlwapi.lib)
