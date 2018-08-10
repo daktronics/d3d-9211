@@ -2,13 +2,11 @@
 #include "util.h"
 
 #include <d3d9.h>
-#include <vector>
 
-#include <directxmath.h>
+#include <vector>
+#include <math.h>
 
 using namespace std;
-
-#define FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE)
 
 namespace {
 
@@ -17,9 +15,9 @@ namespace {
 		float x;
 		float y;
 		float z;
+		DWORD color;
 		float u;
 		float v;
-		DWORD color;
 	};
 
 	//
@@ -42,15 +40,36 @@ namespace {
 		dst.m[3][2] = zn / (zn - zf);
 	}
 
-	/*void to_matrix_9(DirectX::XMFLOAT4X4 const& src, D3DMATRIX& dst)
+	void matrix_rotate_z(D3DMATRIX& dst, float angle)
 	{
-		for (int32_t i = 0; i < 4; ++i) {
-			for (int32_t j = 0; j < 4; ++j) {
-				dst.m[i][j] = src.m[i][j];
-			}		
-		}
-	}*/
+		matrix_identity(dst);
+		dst.m[0][0] = cosf(angle);
+		dst.m[1][1] = cosf(angle);
+		dst.m[0][1] = sinf(angle);
+		dst.m[1][0] = -sinf(angle);
+	}
 
+	void matrix_translation(D3DMATRIX& dst, float x, float y, float z)
+	{
+		matrix_identity(dst);
+		dst.m[3][0] = x;
+		dst.m[3][1] = y;
+		dst.m[3][2] = z;
+	}
+
+	void matrix_multiply(D3DMATRIX& dst, D3DMATRIX const& m1, D3DMATRIX const& m2)
+	{
+		D3DMATRIX out;
+		for (int32_t i = 0; i < 4; ++i)
+		{
+			for (int32_t j = 0; j < 4; ++j)
+			{
+				out.m[i][j] = m1.m[i][0] * m2.m[0][j] + m1.m[i][1] * 
+					m2.m[1][j] + m1.m[i][2] * m2.m[2][j] + m1.m[i][3] * m2.m[3][j];
+			}
+		}
+		dst = out;
+	}
 
 	class Texture2D : public ISurface
 	{
@@ -205,6 +224,39 @@ namespace {
 			}
 		}
 	};
+
+	class Quad
+	{
+	private:
+		shared_ptr<IDirect3DDevice9Ex> const device_;
+		shared_ptr<IDirect3DVertexBuffer9> const vb_;
+
+	public:
+		Quad(shared_ptr<IDirect3DDevice9Ex> const& device,
+			IDirect3DVertexBuffer9* vb)
+			: device_(device)
+			, vb_(to_com_ptr(vb))
+		{
+		}
+		
+		void draw(shared_ptr<Texture2D> const& texture)
+		{
+			if (texture)
+			{
+				device_->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+				device_->SetTexture(0, *texture);
+			}
+			else
+			{
+				device_->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE);
+				device_->SetTexture(0, nullptr);
+			}
+
+			device_->SetStreamSource(0, vb_.get(), 0, sizeof(VERTEX));
+			device_->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+		}
+	};
+
 	
 
 	class Renderer : public IScene
@@ -214,6 +266,9 @@ namespace {
 		shared_ptr<FrameBuffer> const frame_buffer_;
 		shared_ptr<ISurfaceQueue> const queue_;
 		shared_ptr<IDirect3DQuery9> flush_query_;
+		shared_ptr<Quad> quad_preview_;
+		shared_ptr<Quad> quad_spinner_;
+		float spin_angle_;
 
 	public:
 		Renderer(shared_ptr<IDirect3DDevice9Ex> const& device,
@@ -223,6 +278,8 @@ namespace {
 			, frame_buffer_(frame_buffer)
 			, queue_(queue)
 		{
+			spin_angle_ = 0.0f;
+
 			device_->SetRenderState(D3DRS_LIGHTING, 0);
 		}
 
@@ -252,6 +309,8 @@ namespace {
 
 		void tick(double) override
 		{
+			spin_angle_ = spin_angle_ + 0.05f;
+
 		}
 
 		void clear(float red, float green, float blue, float alpha)
@@ -263,54 +322,49 @@ namespace {
 		void render() override
 		{
 			auto const target = queue_->checkout(100);
-			if (target)
-			{
-				clear(0.0f, 0.0f, 0.0f, 0.0f);
-
-				device_->BeginScene();
-
-				auto const w = width();
-				auto const h = height();
-
-				D3DMATRIX mworld;
-				matrix_identity(mworld);
-
-				D3DMATRIX mview;
-				matrix_identity(mview);
-				mview._41 = (-(w / 2.0f));
-				mview._42 = (-(h / 2.0f));
-
-				D3DMATRIX mproj;
-				matrix_ortho_lh(mproj, w * 1.0f, h * -1.0f, 0.0f, 1.0f);
-
-				device_->SetTransform(D3DTS_PROJECTION, &mproj);
-				device_->SetTransform(D3DTS_VIEW, &mview);
-
-				shared_ptr<Texture2D> buffer;
-				
-				{
-					buffer = frame_buffer_->bind(target->share_handle());
-					
-					clear(0.0f, 0.0f, 1.0f, 1.0f);
-
-					device_->SetTransform(D3DTS_WORLD, &mworld);
-					
-					render_scene();
-					
-					frame_buffer_->unbind();
-				}
-
-				// we could add a property to disable preview
-				preview(buffer);
-
-				// ensure the D3D9 device is done writing to our texture buffer
-				flush();
-
-				// place on queue so a producer will be notified
-				queue_->produce(target);
+			if (!target) {
 			}
+			
+			clear(0.0f, 0.0f, 0.0f, 0.0f);
+			
+			device_->BeginScene();
+
+			auto const w = width();
+			auto const h = height();
+			
+			D3DMATRIX mview;
+			matrix_identity(mview);
+			mview._41 = (-(w / 2.0f));
+			mview._42 = (-(h / 2.0f));
+
+			D3DMATRIX mproj;
+			matrix_ortho_lh(mproj, w * 1.0f, h * -1.0f, 0.0f, 1.0f);
+
+			device_->SetTransform(D3DTS_PROJECTION, &mproj);
+			device_->SetTransform(D3DTS_VIEW, &mview);
+
+			shared_ptr<Texture2D> buffer;
+				
+			{
+				buffer = frame_buffer_->bind(target->share_handle());
+					
+				clear(0.0f, 0.0f, 1.0f, 1.0f);
+	
+				render_scene();
+					
+				frame_buffer_->unbind();
+			}
+			
+			// we could add a property to disable preview
+			preview(buffer);
 
 			device_->EndScene();
+
+			// ensure the D3D9 device is done writing to our texture buffer
+			flush();
+
+			// place on queue so a producer will be notified
+			queue_->produce(target);			
 		}
 
 		void present(int32_t) override
@@ -326,9 +380,20 @@ namespace {
 		// render the surface to our window swapchain so we can 
 		// preview it on-screen
 		//
-		void preview(shared_ptr<Texture2D> const&)
+		void preview(shared_ptr<Texture2D> const& texture)
 		{
+			if (!quad_preview_) {
+				quad_preview_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
+			}
 
+			D3DMATRIX mworld;
+			matrix_identity(mworld);
+			device_->SetTransform(D3DTS_WORLD, &mworld);
+
+			if (quad_preview_)
+			{
+				quad_preview_->draw(texture);			
+			}
 		}
 		
 		bool flush()
@@ -368,16 +433,68 @@ namespace {
 			return true;
 		}
 
+		shared_ptr<Quad> create_quad(float x, float y, float w, float h)
+		{
+			IDirect3DVertexBuffer9* vb = nullptr;
+			auto const hr = device_->CreateVertexBuffer(
+				4 * sizeof(VERTEX),
+				0,
+				D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1,
+				D3DPOOL_DEFAULT,
+				&vb,
+				nullptr);
+			if (FAILED(hr)) {
+				return nullptr;
+			}
+
+			auto color = D3DCOLOR_XRGB(0xff, 0xff, 0xff);
+
+			VERTEX vertices[] =
+			{
+				{ x, y, 0.5f,         color, 0.0f, 0.0f },
+				{ x + w, y, 0.5f,     color, 1.0f, 0.0f },
+				{ x, y + h, 0.5f,     color, 0.0f, 1.0f },
+			   { x + w, y + h, 0.5f, color, 1.0f, 1.0f }
+			};
+
+			void* p = nullptr;
+
+			vb->Lock(0, 0, (void**)&p, 0);
+			memcpy(p, vertices, sizeof(vertices));
+			vb->Unlock();
+
+			return make_shared<Quad>(device_, vb);
+		}
+
 		void render_scene()
 		{
-			// select which vertex format we are using
-			//d3ddev->SetFVF(CUSTOMFVF);
+			float bar_w = height() * 0.80f;
+			float bar_h = height() * 0.04f;
 
-			// select the vertex buffer to display
-			//d3ddev->SetStreamSource(0, v_buffer, 0, sizeof(CUSTOMVERTEX));
+			if (!quad_spinner_) {
+				quad_spinner_ = create_quad(0.0f - (bar_w / 2), 0.0f - (bar_h / 2), bar_w, bar_h);
+			}
 
-			// copy the vertex buffer to the back buffer
-			//d3ddev->DrawPrimitive(D3DPT_TRIANGLELIST, 0, 1);
+			D3DMATRIX mworld;
+			matrix_identity(mworld);
+
+			D3DMATRIX mtrans;
+			matrix_translation(mtrans,
+				(width() / 2.0f), 
+				(height() / 2.0f), 0.0f);
+
+			D3DMATRIX mrotate;
+			matrix_identity(mrotate);
+
+			matrix_rotate_z(mrotate, spin_angle_);			
+
+			matrix_multiply(mworld, mrotate, mtrans);
+
+			device_->SetTransform(D3DTS_WORLD, &mworld);
+
+			if (quad_spinner_) {
+				quad_spinner_->draw(nullptr);			
+			}
 		}
 
 	};
