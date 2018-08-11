@@ -524,7 +524,7 @@ namespace {
 			// load background image
 			if (!bg_)
 			{
-				bg_ = load_texture("d3d9_bg.png");
+				bg_ = load_texture("d3d9_meter.png");
 				if (!bg_quad_ && bg_) {
 					bg_quad_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
 				}

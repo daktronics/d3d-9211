@@ -6,6 +6,10 @@
 #include <dwrite.h>
 #include <d2d1.h>
 
+#include <map>
+#include <fstream>
+#include <iomanip>
+
 using namespace std;
 
 namespace {
@@ -85,23 +89,25 @@ namespace {
 			IDWriteFactory* dwrite)
 			: wic_(to_com_ptr(wic))
 			, d2d_(to_com_ptr(d2d))
-			, dwrite_(to_com_ptr(dwrite))
-		{
-		
+			, dwrite_(to_com_ptr(dwrite)) {		
 		}
 		
 		void generate(uint32_t width, uint32_t height) override
 		{
+			// create a simple 16x16 graphic for transparency
 			auto canvas = generate_transparent(16, 16);
 			if (canvas) {
 				save_canvas(canvas, get_temp_filename("transparent.png"));
 			}
 
+			// create a scale for our spinning bar
 			canvas = generate_meter("Direct3D9", width, height);
 			if (canvas) {
-				save_canvas(canvas, get_temp_filename("d3d9_bg.png"));
+				save_canvas(canvas, get_temp_filename("d3d9_meter.png"));
 			}
 
+			// create a font atlas for the console
+			generate_console_font();
 		}
 
 		shared_ptr<string> locate(std::string const& filename) override
@@ -284,6 +290,123 @@ namespace {
 
 			ctx->EndDraw();
 			return canvas;
+		}
+
+		void generate_console_font()
+		{
+			auto const format = create_text_format(
+				"Lucida Console", 20.0f, DWRITE_FONT_WEIGHT_REGULAR);
+			if (!format) {
+				return;
+			}
+
+			D2D1_RECT_F box;
+
+			map<int32_t, D2D1_RECT_F> glyphs;
+			glyphs.insert(make_pair(0, box));
+
+			{ // add ASCII printable set				
+				for (int32_t c = 0x20; c < 0x7f; c++) {
+					glyphs.insert(make_pair(c, box));
+				}
+			}
+
+			{ // add some common unicode chars
+				for (int32_t c = 0xA0; c < 0xBF; c++) {
+					glyphs.insert(make_pair(c, box));
+				}
+			}
+			
+			// we're just assuming fixed-width font
+			auto metrics = measure(format, "W");
+			
+			uint32_t cols = 32;
+			uint32_t rows = (uint32_t(glyphs.size()) + (cols - 1)) / cols;
+			auto const width = static_cast<uint32_t>((metrics.width * cols) + 0.5f);
+			auto const height = static_cast<uint32_t>((metrics.height * rows) + 0.5f);
+
+			auto const canvas = create_canvas(width, height);
+			auto const ctx = create_context(canvas);
+			if (!ctx) {
+				return;
+			}
+
+			ctx->BeginDraw();
+			ctx->SetTransform(D2D1::IdentityMatrix());
+			ctx->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+
+			auto const brush_glyph = create_solid_brush(
+				ctx, D2D1::ColorF(1.0f, 0.0f, 0.0f, 1.0f));
+			auto const brush_grid = create_solid_brush(
+				ctx, D2D1::ColorF(0.0f, 0.0f, 1.0f, 1.0f));
+
+			format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+			format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+			format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_FAR);
+
+			uint32_t c = 0;
+			float x = 0.0f, y = metrics.height;
+			for (auto& g : glyphs)
+			{
+				ctx->SetTransform(D2D1::Matrix3x2F::Identity());
+				
+				wstring s(1, static_cast<wchar_t>(g.first));
+
+				ctx->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+
+				box.left = x;
+				box.top = y;
+				box.right = box.left;
+				box.bottom = box.top;
+
+				ctx->DrawText(s.c_str(),
+					int32_t(s.size()),
+					format.get(),
+					box,
+					brush_glyph.get());
+
+				// update the bounding box
+				box.right = box.left + metrics.width;
+				box.bottom = box.top + metrics.height;
+				g.second = box;
+				
+				if (++c >= cols) 
+				{
+					// for debugging ... draw horz grid line
+					ctx->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+					ctx->DrawLine(
+						D2D1::Point2F(0.0f, y), D2D1::Point2F(float(width), y), brush_grid.get());
+
+					x = 0.0f;
+					y = y + metrics.height;
+					c = 0;
+				}
+				else {
+					x = x + metrics.width;
+				}
+			}
+
+			ctx->EndDraw();
+
+			save_canvas(canvas, get_temp_filename("console.png"));
+
+			// save the atlas
+			auto const atlas = get_temp_filename("console.atlas");
+			
+			ofstream fout(to_utf16(atlas));
+			if (fout.is_open())			
+			{
+				for (auto const g : glyphs)
+				{
+					fout << "U+" << std::hex
+						<< std::right << std::setfill('0') << std::setw(4) << std::uppercase << g.first
+						<< " { ";
+					fout << "box: " << g.second.left << " " << g.second.top << " ";
+					fout << (g.second.right - g.second.left) << " ";
+					fout << (g.second.bottom - g.second.top);
+					fout << " }\n";
+				}			
+			}
 		}
 
 		shared_ptr<IWICBitmap> create_canvas(uint32_t width, uint32_t height)
