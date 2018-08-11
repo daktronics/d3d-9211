@@ -20,6 +20,34 @@ private:
 };
 
 
+//
+// represents a code point within a font atlas
+//
+struct Glyph 
+{
+	int32_t code;
+	float left;
+	float top;
+	float width;
+	float height;
+};
+
+
+class IFontAtlas
+{
+public:
+	IFontAtlas() {}
+	virtual ~IFontAtlas() {}
+
+	virtual std::shared_ptr<IImage> image() const = 0;
+	virtual std::shared_ptr<Glyph const> find(int32_t code) const = 0;
+
+private:
+	IFontAtlas(IFontAtlas const&) = delete;
+	IFontAtlas& operator=(IFontAtlas const&) = delete;
+};
+
+
 class IAssets
 {
 public:
@@ -27,16 +55,18 @@ public:
 	virtual ~IAssets() {}
 
 	virtual void generate(uint32_t width, uint32_t height) = 0;
-	virtual std::shared_ptr<std::string> locate(std::string const&) = 0;
+	virtual std::shared_ptr<std::string> locate(std::string const&) const = 0;
 
 	virtual std::shared_ptr<IImage> load_image(
-		std::shared_ptr<std::string> const& filename) = 0;
+		std::shared_ptr<std::string> const& filename) const = 0;
+
+	virtual std::shared_ptr<IFontAtlas> load_font(
+		std::shared_ptr<std::string> const& filename) const = 0;
 
 private:
 	IAssets(IAssets const&) = delete;
 	IAssets& operator=(IAssets const&) = delete;
 };
-
 
 
 std::shared_ptr<IAssets> create_assets();

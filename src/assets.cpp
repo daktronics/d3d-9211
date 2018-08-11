@@ -7,6 +7,7 @@
 #include <d2d1.h>
 
 #include <map>
+#include <vector>
 #include <fstream>
 #include <iomanip>
 
@@ -75,6 +76,137 @@ namespace {
 	};
 
 
+	class FontAtlas : public IFontAtlas
+	{
+	private:
+		shared_ptr<IImage> const image_;
+		map<int32_t, shared_ptr<Glyph const>> glyphs_;
+
+	public:
+		FontAtlas(shared_ptr<IImage> const& image)
+			: image_(image) {
+		}
+		
+		shared_ptr<IImage> image() const override {
+			return image_;
+		}
+
+		shared_ptr<Glyph const> find(int32_t code) const override 
+		{
+			auto const i = glyphs_.find(code);
+			return (i != glyphs_.end()) ? i->second : nullptr;
+		}
+
+		void map(Glyph const& glyph) {
+			glyphs_[glyph.code] = make_shared<Glyph>(glyph);
+		}	
+
+		static shared_ptr<FontAtlas> load(
+			string const& filename, shared_ptr<IImage> const image)
+		{
+			ifstream fin(to_utf16(filename));
+			if (!fin.is_open()) {
+				return nullptr;
+			}
+
+			auto const atlas = make_shared<FontAtlas>(image);
+
+			// todo: an improvement would be a real parser instead of 
+			// requiring each glyph to be on a single line
+			
+			string line;
+			while (std::getline(fin, line)) {
+				auto const n = line.find('{');
+				if (n != string::npos) {
+					auto glyph = make_shared<Glyph>();
+					glyph->code = to_code_point(trim(line.substr(0, n)));
+					if (glyph->code >= 0) {
+						if (parse_glyph(trim(line.substr(n)), glyph)) {
+							atlas->glyphs_[glyph->code] = glyph;
+						}
+					}
+				}
+			}
+			return atlas;
+		}
+
+		void save(string const& filename)
+		{
+			ofstream fout(to_utf16(filename));
+			if (fout.is_open())
+			{
+				for (auto const g : glyphs_)
+				{
+					fout << "U+" << std::hex
+						<< std::right << std::setfill('0') << std::setw(4) << std::uppercase << g.first
+						<< " { ";
+					fout << "box: " << g.second->left << " " << g.second->top << " ";
+					fout << g.second->width << " " << g.second->height;
+					fout << " }\n";
+				}
+			}
+		}
+
+	private:
+
+		static int32_t to_code_point(string const& input)
+		{
+			if (input.size() >= 6) {
+				if (input[0] == 'U' && input[1] == '+') {
+					try {
+						return stoi(input.substr(2), 0, 16);
+					}
+					catch (...) { }
+				}
+			}
+			return -1;
+		}
+
+		static bool to_float(string const& input, float& f)
+		{
+			try {
+				f = stof(input);
+				return true;
+			}
+			catch (...) {}
+			return false;
+		}
+
+		static bool parse_glyph(
+			string const& input,
+			shared_ptr<Glyph> const& glyph)
+		{
+			if (input.empty() || input.front() != '{' || input.back() != '}') {
+				return false;
+			}
+			auto const props = trim(input.substr(1, input.size() - 2));
+
+			// todo: support more than one property if necessary
+		   // box: <left> <top> <width> <height>
+			
+			auto const n = props.find(':');
+			if (n == string::npos) {
+				return false;
+			}
+
+			auto const key = trim(props.substr(0, n));
+			if (key == "box")
+			{
+				auto const parts = split(trim(props.substr(n + 1)), ' ');
+				if (parts.size() == 4) 
+				{					
+					if (!to_float(parts[0], glyph->left)) { return false; }
+					if (!to_float(parts[1], glyph->top)) { return false; }
+					if (!to_float(parts[2], glyph->width)) { return false; }
+					if (!to_float(parts[3], glyph->height)) { return false; }				
+				}
+				return true;
+			}
+			return false;
+		}
+	};
+
+
 	class Assets : public IAssets
 	{
 	private:
@@ -110,7 +242,7 @@ namespace {
 			generate_console_font();
 		}
 
-		shared_ptr<string> locate(std::string const& filename) override
+		shared_ptr<string> locate(std::string const& filename) const override
 		{
 			auto const path = get_temp_filename(filename);
 			if (file_exists(path)) {
@@ -120,7 +252,7 @@ namespace {
 		}
 
 		shared_ptr<IImage> load_image(
-			shared_ptr<std::string> const& filename) override
+			shared_ptr<std::string> const& filename) const override
 		{
 			if (!filename) {
 				return nullptr;
@@ -176,6 +308,33 @@ namespace {
 			if (SUCCEEDED(hr)) {
 				return make_shared<Image>(buffer, width, height, stride);
 			}
+			return nullptr;
+		}
+
+		shared_ptr<IFontAtlas> load_font(
+			shared_ptr<string> const& filename) const override
+		{
+			if (!filename) {
+				return nullptr;
+			}
+
+			string img_file(*filename);
+			
+			{  // change extension to match corresponding PNG image
+
+				auto const n = img_file.find_last_of('.');
+				if (n != string::npos) {
+					img_file = img_file.substr(0, n);
+				}
+				img_file.append(".png");
+			}
+
+			// PNG is required
+			auto const image = load_image(make_shared<string>(img_file));
+			if (image) {
+				return FontAtlas::load(*filename, image);
+			}
+
 			return nullptr;
 		}
 
@@ -300,20 +459,18 @@ namespace {
 				return;
 			}
 
-			D2D1_RECT_F box;
-
-			map<int32_t, D2D1_RECT_F> glyphs;
-			glyphs.insert(make_pair(0, box));
+			vector<int32_t> glyphs;
+			glyphs.push_back(0);
 
 			{ // add ASCII printable set				
 				for (int32_t c = 0x20; c < 0x7f; c++) {
-					glyphs.insert(make_pair(c, box));
+					glyphs.push_back(c);
 				}
 			}
 
 			{ // add some common unicode chars
 				for (int32_t c = 0xA0; c < 0xBF; c++) {
-					glyphs.insert(make_pair(c, box));
+					glyphs.push_back(c);
 				}
 			}
 			
@@ -344,16 +501,19 @@ namespace {
 			format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 			format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_FAR);
 
+			FontAtlas atlas(nullptr);
+
 			uint32_t c = 0;
 			float x = 0.0f, y = metrics.height;
 			for (auto& g : glyphs)
 			{
 				ctx->SetTransform(D2D1::Matrix3x2F::Identity());
 				
-				wstring s(1, static_cast<wchar_t>(g.first));
+				wstring s(1, static_cast<wchar_t>(g));
 
 				ctx->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
 
+				D2D1_RECT_F box;
 				box.left = x;
 				box.top = y;
 				box.right = box.left;
@@ -365,10 +525,14 @@ namespace {
 					box,
 					brush_glyph.get());
 
-				// update the bounding box
-				box.right = box.left + metrics.width;
-				box.bottom = box.top + metrics.height;
-				g.second = box;
+				Glyph glyph;
+				glyph.code = g;
+				glyph.left = box.left;
+				glyph.top = box.top;
+				glyph.width = metrics.width;
+				glyph.height = metrics.height;
+
+				atlas.map(glyph);
 				
 				if (++c >= cols) 
 				{
@@ -390,23 +554,8 @@ namespace {
 
 			save_canvas(canvas, get_temp_filename("console.png"));
 
-			// save the atlas
-			auto const atlas = get_temp_filename("console.atlas");
-			
-			ofstream fout(to_utf16(atlas));
-			if (fout.is_open())			
-			{
-				for (auto const g : glyphs)
-				{
-					fout << "U+" << std::hex
-						<< std::right << std::setfill('0') << std::setw(4) << std::uppercase << g.first
-						<< " { ";
-					fout << "box: " << g.second.left << " " << g.second.top << " ";
-					fout << (g.second.right - g.second.left) << " ";
-					fout << (g.second.bottom - g.second.top);
-					fout << " }\n";
-				}			
-			}
+			// save the atlas			
+			atlas.save(get_temp_filename("console.atlas"));
 		}
 
 		shared_ptr<IWICBitmap> create_canvas(uint32_t width, uint32_t height)

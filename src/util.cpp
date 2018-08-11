@@ -37,6 +37,29 @@ void log_message(const char* msg, ...)
 	}
 }
 
+string trim(string const& input)
+{
+	const char* ws = " \t\n\r\f\v";
+
+	string output(input);
+	output.erase(output.find_last_not_of(ws) + 1);
+	output.erase(0, output.find_first_not_of(ws));
+	return output;
+}
+
+vector<string> split(string const& input, char sep) 
+{
+	vector<string> tokens;
+	size_t start = 0, end = 0;
+	while ((end = input.find(sep, start)) != string::npos) {
+		tokens.push_back(input.substr(start, end - start));
+		start = end + 1;
+	}
+	tokens.push_back(input.substr(start));
+	return tokens;
+}
+
+
 string to_utf8(wstring const& utf16)
 {
 	return to_utf8(utf16.c_str());

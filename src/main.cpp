@@ -65,6 +65,10 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 
 	assets->generate(width, height);
 
+	auto const f = assets->load_font(assets->locate("console.atlas"));
+
+
+
 	auto producer = create_producer(win_preview, width, height, assets);
 	auto consumer = create_consumer(win_main, width, height, producer);
 

@@ -3,6 +3,8 @@ set(ALL_SRCS
 	app.rc
 	assets.h
 	assets.cpp
+	console.h
+	console.cpp
 	d3d.cpp
 	d3d.h	
 	d3d11.cpp
