@@ -311,7 +311,7 @@ namespace {
 			return nullptr;
 		}
 
-		shared_ptr<IFontAtlas> load_font(
+		shared_ptr<IFontAtlas const> load_font(
 			shared_ptr<string> const& filename) const override
 		{
 			if (!filename) {
@@ -418,7 +418,7 @@ namespace {
 			{ // draw tic marks
 
 				auto const format = create_text_format(
-					"Lucida Console", radius.y * 0.08f, DWRITE_FONT_WEIGHT_BOLD);
+					monospace_family(), radius.y * 0.08f, DWRITE_FONT_WEIGHT_BOLD);
 
 				auto const width = stroke * 0.75f;
 				auto const len = width * 4;
@@ -454,7 +454,7 @@ namespace {
 		void generate_console_font()
 		{
 			auto const format = create_text_format(
-				"Lucida Console", 20.0f, DWRITE_FONT_WEIGHT_REGULAR);
+				monospace_family(), 32.0f, DWRITE_FONT_WEIGHT_BOLD);
 			if (!format) {
 				return;
 			}
@@ -493,7 +493,7 @@ namespace {
 			ctx->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
 
 			auto const brush_glyph = create_solid_brush(
-				ctx, D2D1::ColorF(1.0f, 0.0f, 0.0f, 1.0f));
+				ctx, D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f));
 			auto const brush_grid = create_solid_brush(
 				ctx, D2D1::ColorF(0.0f, 0.0f, 1.0f, 1.0f));
 
@@ -504,7 +504,7 @@ namespace {
 			FontAtlas atlas(nullptr);
 
 			uint32_t c = 0;
-			float x = 0.0f, y = metrics.height;
+			float x = 0.0f, y = 0.0f;
 			for (auto& g : glyphs)
 			{
 				ctx->SetTransform(D2D1::Matrix3x2F::Identity());
@@ -515,7 +515,7 @@ namespace {
 
 				D2D1_RECT_F box;
 				box.left = x;
-				box.top = y;
+				box.top = y + metrics.height;
 				box.right = box.left;
 				box.bottom = box.top;
 
@@ -527,8 +527,8 @@ namespace {
 
 				Glyph glyph;
 				glyph.code = g;
-				glyph.left = box.left;
-				glyph.top = box.top;
+				glyph.left = x;
+				glyph.top = y;
 				glyph.width = metrics.width;
 				glyph.height = metrics.height;
 
@@ -539,7 +539,7 @@ namespace {
 					// for debugging ... draw horz grid line
 					ctx->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 					ctx->DrawLine(
-						D2D1::Point2F(0.0f, y), D2D1::Point2F(float(width), y), brush_grid.get());
+						D2D1::Point2F(0.0f, box.top), D2D1::Point2F(float(width), box.top), brush_grid.get());
 
 					x = 0.0f;
 					y = y + metrics.height;
@@ -843,6 +843,13 @@ namespace {
 
 			ctx->DrawGeometry(path.get(), brush.get(), stroke);
 		}
+
+		string monospace_family() const 
+		{
+			return "Consolas";
+		}
+
+
 	};
 }
 

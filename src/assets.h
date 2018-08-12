@@ -60,7 +60,7 @@ public:
 	virtual std::shared_ptr<IImage> load_image(
 		std::shared_ptr<std::string> const& filename) const = 0;
 
-	virtual std::shared_ptr<IFontAtlas> load_font(
+	virtual std::shared_ptr<IFontAtlas const> load_font(
 		std::shared_ptr<std::string> const& filename) const = 0;
 
 private:

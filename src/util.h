@@ -18,6 +18,8 @@ std::wstring to_utf16(std::string const&);
 
 std::string trim(std::string const&);
 
+std::string to_timecode(double);
+
 std::vector<std::string> split(std::string const& input, char sep);
 
 int to_int(std::string, int default_val);

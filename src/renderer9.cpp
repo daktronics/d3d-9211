@@ -260,6 +260,201 @@ namespace {
 		}
 	};
 
+	class ConsoleGeometry
+	{
+	private:		
+		uint32_t index_capacity_;
+		uint32_t vertex_capacity_;
+		uint32_t vertex_size_;
+		uint32_t index_size_;
+		uint32_t triangles_;
+		
+		shared_ptr<IDirect3DIndexBuffer9> indices_;
+		shared_ptr<IDirect3DVertexBuffer9> vertices_;
+		shared_ptr<IDirect3DDevice9Ex> const device_;
+
+	public:
+		ConsoleGeometry(shared_ptr<IDirect3DDevice9Ex> const& device) 
+			: index_capacity_(0)
+			, vertex_capacity_(0)
+			, vertex_size_(0)
+			, index_size_(0)
+			, triangles_(0)
+			, device_(device) {
+		}
+		
+		void update(shared_ptr<IConsole const> const& console)
+		{
+			// to build geometry .. we need the font for the console
+			auto const font = console ? console->font() : nullptr;
+			if (!font) 
+			{
+				index_capacity_ = index_size_ = 0;
+				vertex_capacity_ = vertex_size_ = 0;
+				triangles_ = 0;
+				indices_.reset();
+				vertices_.reset();
+				return;
+			}			
+
+			// determine the max # of vertices the console will use
+			uint32_t chars = console->column_count() * console->line_count();
+			uint32_t vertices = chars * 4;
+			uint32_t indices = chars * 6;
+
+			create_buffers(vertices, indices);
+			if (!vertices_ || !indices_) {
+				return;
+			}
+
+			vertex_size_ = index_size_ = triangles_ = 0;
+
+			auto const image = font->image();
+			auto const width = image ? float(image->width()) : 0.0f;
+			auto const height = image ? float(image->height()) : 0.0f;
+						
+			void* p;
+			auto hr = vertices_->Lock(0, 0, (void**)&p, 0);
+			if (FAILED(hr)) {				
+				return;
+			}
+			
+			VERTEX* pvert = reinterpret_cast<VERTEX*>(p);
+			
+			hr = indices_->Lock(0, 0, (void**)&p, 0);
+			if (FAILED(hr)) {
+				vertices_->Unlock();
+				return;
+			}
+			
+			int32_t* pidx = reinterpret_cast<int32_t*>(p);
+			int32_t idx = 0;
+
+			D3DCOLOR color = 0xffffffff;
+			//D3DCOLOR color = 0xffff0000;
+
+			float x, y = 0;
+			auto const line_count = console->line_count();
+			for (int32_t line = 0; line < line_count; ++line)
+			{
+				x = 0.0f;
+				auto glyphs = console->get_line(line);
+				for (auto const& glyph : glyphs)
+				{
+					float u0 = glyph->left / width;
+					float v0 = glyph->top / height;
+					float u1 = (glyph->left + glyph->width) / width;
+					float v1 = (glyph->top + glyph->height) / height;
+
+					pvert->x = x; pvert->y = y; pvert->z = 0.0f;
+					pvert->color = color;
+					pvert->u = u0; pvert->v = v0;
+					pvert->x -= 0.5f; pvert->y -= 0.5f;
+					pvert++;
+					
+					pvert->x = x + glyph->width; pvert->y = y; pvert->z = 0.0f;
+					pvert->color = color;
+					pvert->u = u1; pvert->v = v0;
+					pvert->x -= 0.5f; pvert->y -= 0.5f;
+					pvert++;
+
+					pvert->x = x; pvert->y = y + glyph->height; pvert->z = 0.0f;
+					pvert->color = color;
+					pvert->u = u0; pvert->v = v1;
+					pvert->x -= 0.5f; pvert->y -= 0.5f;
+					pvert++;
+
+					pvert->x = x + glyph->width; pvert->y = y + glyph->height; pvert->z = 0.0f;
+					pvert->color = color;
+					pvert->u = u1; pvert->v = v1;
+					pvert->x -= 0.5f; pvert->y -= 0.5f;
+					pvert++;
+
+					*pidx = idx;
+					*(pidx + 1) = idx + 1;
+					*(pidx + 2) = idx + 2;
+					*(pidx + 3) = idx + 1;
+					*(pidx + 4) = idx + 3;
+					*(pidx + 5) = idx + 2;
+
+					pidx += 6;
+					vertex_size_ += 4;
+					index_size_ += 6;
+					idx += 4;
+					triangles_ += 2;
+
+					x = x + glyph->width;
+				}
+
+				if (!glyphs.empty()) {
+					y = y + glyphs.front()->height;
+				}
+			}
+
+			indices_->Unlock();
+			vertices_->Unlock();				
+		}
+
+		void draw(shared_ptr<Texture2D> const& texture)
+		{
+			if (texture && vertices_ && indices_)
+			{
+				device_->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+				device_->SetTexture(0, *texture);
+				device_->SetIndices(indices_.get());
+				device_->SetStreamSource(0, vertices_.get(), 0, sizeof(VERTEX));
+
+				device_->DrawIndexedPrimitive(
+					D3DPT_TRIANGLELIST, 0, 0, vertex_size_, 0, triangles_);
+			}
+		}
+
+	private:
+
+		void create_buffers(uint32_t vertices, uint32_t indices)
+		{
+			HRESULT hr;
+			if (vertices > vertex_capacity_)
+			{
+				vertices_.reset();
+				vertex_capacity_ = vertices;
+				if (vertex_capacity_ > 0)
+				{
+					IDirect3DVertexBuffer9* vb = nullptr;
+					hr = device_->CreateVertexBuffer(
+						vertex_capacity_ * sizeof(VERTEX),
+						D3DUSAGE_DYNAMIC,
+						D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1,
+						D3DPOOL_DEFAULT,
+						&vb,
+						nullptr);
+					if (SUCCEEDED(hr)) {
+						vertices_ = to_com_ptr(vb);
+					}
+				}
+			}
+
+			if (indices > index_capacity_)
+			{
+				indices_.reset();
+				index_capacity_ = indices;
+				if (index_capacity_ > 0)
+				{
+					IDirect3DIndexBuffer9* ib = nullptr;
+					hr = device_->CreateIndexBuffer(
+						index_capacity_ * sizeof(int32_t),
+						D3DUSAGE_DYNAMIC,
+						D3DFMT_INDEX32,
+						D3DPOOL_DEFAULT,
+						&ib,
+						nullptr);
+					if (SUCCEEDED(hr)) {
+						indices_ = to_com_ptr(ib);
+					}
+				}
+			}
+		}
+	};
 	
 
 	class Renderer : public IScene
@@ -280,8 +475,14 @@ namespace {
 		shared_ptr<Quad> pattern_quad_;
 		shared_ptr<Texture2D> pattern_;
 		
-		float spin_angle_;
+		double spin_angle_;
+		int64_t frame_;
+		double fps_;
+		int64_t fps_start_;
+		int64_t fps_frame_;
 		
+		shared_ptr<Texture2D> console_font_;
+		shared_ptr<ConsoleGeometry> console_geometry_;
 		shared_ptr<IConsole> console_;
 
 	public:
@@ -294,8 +495,13 @@ namespace {
 			, device_(device)
 			, frame_buffer_(frame_buffer)
 			, queue_(queue)
+			, frame_(-1ll)
+			, fps_(0.0)
+			, fps_start_(time_now())
+			, fps_frame_(0ll)
+			, console_geometry_(make_shared<ConsoleGeometry>(device))
 		{
-			spin_angle_ = 0.0f;
+			spin_angle_ = 0.0;
 			device_->SetRenderState(D3DRS_LIGHTING, 0);
 
 			// initialize our console for stats
@@ -327,14 +533,25 @@ namespace {
 			return frame_buffer_ ? frame_buffer_->height() : 0;
 		}
 
-		void tick(double) override
+		void tick(double t) override
 		{
-			spin_angle_ = spin_angle_ + static_cast<float>(1 * (PI / 180.0));
+			++frame_;
+
+			auto degrees = (t * 60.0);
+			spin_angle_ = (degrees * (PI / 180.0));
 
 			if (console_) 
 			{
-				console_->writelnf(0, "%dx%d", width(), height());
+				console_->writelnf(0, "%dx%d", width(), height());				
+				console_->writelnf(1, "%s", to_timecode(t).c_str());
+				console_->writelnf(2, "frame: %06I64d", frame_);
 
+				degrees = degrees - (floor(degrees / 360.0) * 360.0);
+				console_->writelnf(3, "angle: %03d\xc2\xb0", static_cast<uint32_t>(degrees));
+				
+				console_->writelnf(4, "fps:   %3.2f", fps_);
+
+				console_geometry_->update(console_);
 			}
 		}
 
@@ -389,7 +606,15 @@ namespace {
 			flush();
 
 			// place on queue so a producer will be notified
-			queue_->produce(target);			
+			queue_->produce(target);
+
+			auto const now = time_now();
+			if ((now - fps_start_) > 1000000)
+			{
+				fps_ = (frame_ - fps_frame_) / double((now - fps_start_) / 1000000.0);
+				fps_frame_ = frame_;
+				fps_start_ = time_now();
+			}
 		}
 
 		void present(int32_t) override
@@ -525,10 +750,10 @@ namespace {
 			device_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 		}
 
-		void set_sampler_state(DWORD addressing)
+		void set_sampler_state(DWORD addressing, DWORD filtering= D3DTEXF_LINEAR)
 		{
-			device_->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-			device_->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+			device_->SetSamplerState(0, D3DSAMP_MINFILTER, filtering);
+			device_->SetSamplerState(0, D3DSAMP_MAGFILTER, filtering);
 			device_->SetSamplerState(0, D3DSAMP_ADDRESSU, addressing);
 			device_->SetSamplerState(0, D3DSAMP_ADDRESSV, addressing);			
 		}
@@ -544,6 +769,16 @@ namespace {
 				}
 			}
 
+			// load console font texture
+			if (!console_font_)
+			{
+				if (console_)
+				{
+					auto const font = console_->font();
+					console_font_ = load_texture(font ? font->image() : nullptr);			
+				}
+			}
+
 			if (!spinner_quad_) 
 			{
 				float bar_w = height() * 0.75f;
@@ -555,7 +790,6 @@ namespace {
 
 			D3DMATRIX mworld;
 			matrix_identity(mworld);
-
 			device_->SetTransform(D3DTS_WORLD, &mworld);
 
 			// draw background image if we have one
@@ -566,41 +800,55 @@ namespace {
 				bg_quad_->draw(bg_);
 			}
 
-			D3DMATRIX mtrans;
-			matrix_translation(mtrans,
-				(width() / 2.0f), 
-				(height() / 2.0f), 0.0f);
+			// draw the console
+			if (console_geometry_) 
+			{
+				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_POINT);
+				enable_blending(false);
+				console_geometry_->draw(console_font_);
+			}
 
-			D3DMATRIX mrotate;
-			matrix_identity(mrotate);
+			// draw the spinning bar
+			if (spinner_quad_)
+			{ 
+				D3DMATRIX mtrans;
+				matrix_translation(mtrans,
+					(width() / 2.0f),
+					(height() / 2.0f), 0.0f);
 
-			matrix_rotate_z(mrotate, spin_angle_);			
+				D3DMATRIX mrotate;
+				matrix_identity(mrotate);
+				matrix_rotate_z(mrotate, float(spin_angle_));
+				matrix_multiply(mworld, mrotate, mtrans);
 
-			matrix_multiply(mworld, mrotate, mtrans);
-
-			device_->SetTransform(D3DTS_WORLD, &mworld);
-
-			if (spinner_quad_) {
+				device_->SetTransform(D3DTS_WORLD, &mworld);
 				spinner_quad_->draw(nullptr);
 			}
 		}
 
 		shared_ptr<Texture2D> load_texture(string const& key)
 		{
-			if (!assets_) {
-				return nullptr;
+			if (assets_)
+			{
+				auto const path = assets_->locate(key);
+				auto const img = assets_->load_image(path);
+				if (img) {
+					return load_texture(img);
+				}
+			}
+			return nullptr;			
+		}
+
+		shared_ptr<Texture2D> load_texture(shared_ptr<IImage> const& image)
+		{
+			if (!image) {
+				return nullptr;			
 			}
 
-			auto const path = assets_->locate(key);
-			auto const img = assets_->load_image(path);
-			if (!img) {
-				return nullptr;
-			}
+			auto const w = image->width();
+			auto const h = image->height();
 
-			auto const w = img->width();
-			auto const h = img->height();
-
-			IDirect3DTexture9* texture = nullptr;			
+			IDirect3DTexture9* texture = nullptr;
 			auto hr = device_->CreateTexture(
 				w, h, 1,
 				D3DUSAGE_DYNAMIC,
@@ -614,17 +862,17 @@ namespace {
 
 			D3DLOCKED_RECT lock;
 			hr = texture->LockRect(0, &lock, nullptr, D3DLOCK_NOSYSLOCK);
-			if (SUCCEEDED(hr)) 
+			if (SUCCEEDED(hr))
 			{
 				uint32_t src_stride;
-				uint8_t* src = reinterpret_cast<uint8_t*>(img->lock(src_stride));
+				uint8_t* src = reinterpret_cast<uint8_t*>(image->lock(src_stride));
 				if (src)
 				{
 					if (src_stride == lock.Pitch)
 					{
-						memcpy(lock.pBits, src, lock.Pitch * h);					
+						memcpy(lock.pBits, src, lock.Pitch * h);
 					}
-					else 
+					else
 					{
 						size_t cb = src_stride < uint32_t(lock.Pitch) ? src_stride : lock.Pitch;
 						uint8_t* dst = reinterpret_cast<uint8_t*>(lock.pBits);
@@ -635,7 +883,7 @@ namespace {
 							dst += lock.Pitch;
 						}
 					}
-					img->unlock();				
+					image->unlock();
 				}
 				texture->UnlockRect(0);
 			}

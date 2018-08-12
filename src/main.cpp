@@ -73,8 +73,8 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	auto consumer = create_consumer(win_main, width, height, producer);
 
 	// make the windows visible now that we have D3D components ready
-	zoom_window(win_main, consumer, 0.5f);
-	zoom_window(win_preview, producer, 0.5f);
+	zoom_window(win_main, consumer, 1.0f);
+	zoom_window(win_preview, producer, 1.0f);
 
 	// load keyboard accelerators
 	auto const accel_table = 

@@ -61,6 +61,20 @@ vector<string> split(string const& input, char sep)
 	return tokens;
 }
 
+string to_timecode(double t)
+{
+	auto const h = static_cast<int32_t>(t / 3600.0);
+	t = t - (h * 3600.0);
+	auto const m = static_cast<int32_t>(t / 60.0);
+	t = t - (m * 60.0);
+	auto const s = static_cast<int32_t>(t);
+	t = t - s;
+
+	char buff[128];
+	sprintf(buff, "%02d:%02d:%02d.%03d", h, m, s, int32_t(t * 1000.0));
+	return string(buff);
+}
+
 
 string to_utf8(wstring const& utf16)
 {

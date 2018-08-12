@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 
@@ -16,40 +17,49 @@ namespace {
 	private:
 		string text_;
 		vector<shared_ptr<Glyph const>> glyphs_;
-		shared_ptr<IFontAtlas> const font_;
+		shared_ptr<IFontAtlas const> const font_;
 
 	public:
-		Line(shared_ptr<IFontAtlas> const& font) 
+		Line(shared_ptr<IFontAtlas const> const& font) 
 			: font_(font) {
 		}
 		
 		void write(string const& text)
 		{
-			if (text != text_) 
-			{
+			if (text != text_) {
 				text_ = text;
 				map_glyphs(text);
 			}
+		}
+
+		int32_t length() const {
+			return int32_t(glyphs_.size());
+		}
+
+		vector<shared_ptr<Glyph const>> glyphs() const {
+			return glyphs_;
 		}
 
 	private:
 
 		void map_glyphs(string const& text)
 		{
-			glyphs_.clear();
-			glyphs_.reserve(text.size());
+			auto const utf16 = to_utf16(text);
 
-			for (auto const& c : text)
+			glyphs_.clear();
+			glyphs_.reserve(utf16.size());
+			for (auto const& c : utf16)
 			{
 				auto glyph = font_->find(c);
-				if (!glyph) 
+				if (glyph) {
+					glyphs_.push_back(glyph);
+				}
+				else 
 				{
 					// todo: handle a replacement character
 					assert(0);
 					continue;
-				}			
-
-				glyphs_.push_back(glyph);
+				}
 			}
 		}
 	};
@@ -61,24 +71,27 @@ namespace {
 		size_t max_format_cch_ = 1024;
 		shared_ptr<char> const format_buff_;
 		vector<shared_ptr<Line>> lines_;
-		shared_ptr<IFontAtlas> const font_;
+		shared_ptr<IFontAtlas const> const font_;
 
 	public:
-		Console(shared_ptr<IFontAtlas> const& font)
+		Console(shared_ptr<IFontAtlas const> const& font)
 			: max_format_cch_(1024)
 			, format_buff_((char*)malloc(max_format_cch_ + 1), free)
 			, font_(font) 		
 		{
 		}
 
+		shared_ptr<IFontAtlas const> font() const override {
+			return font_;
+		}
+
 		void writeln(int32_t index, std::string const& text) override
 		{
+			// ensure we have a line to write to
 			auto const line = alloc_line(index);
-			if (!line) {
-				return;
+			if (line) {
+				line->write(text);
 			}
-
-			line->write(text);
 		}
 
 		void writelnf(int32_t index, const char* msg, ...) override
@@ -98,6 +111,26 @@ namespace {
 			}
 		}
 
+		vector<shared_ptr<Glyph const>> get_line(int32_t n) const override
+		{
+			if (n >= 0 && n < int32_t(lines_.size())) {
+				return lines_[n]->glyphs();
+			}
+			return vector<shared_ptr<Glyph const>>();
+		}
+
+		int32_t line_count() const override {
+			return int32_t(lines_.size());
+		}
+
+		int32_t column_count() const override {
+			int32_t len = 0;
+			for (auto const& l : lines_) {
+				len = std::max(len, l->length());
+			}
+			return len;
+		}
+
 	private:
 
 		shared_ptr<Line> alloc_line(int32_t line)
@@ -114,7 +147,7 @@ namespace {
 	};
 }
 
-shared_ptr<IConsole> create_console(shared_ptr<IFontAtlas> const& font)
+shared_ptr<IConsole> create_console(shared_ptr<IFontAtlas const> const& font)
 {
 	if (font) {
 		return make_shared<Console>(font);
