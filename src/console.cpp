@@ -59,16 +59,16 @@ namespace {
 	{
 	private:
 		size_t max_format_cch_ = 1024;
-		string format_buff_;
+		shared_ptr<char> const format_buff_;
 		vector<shared_ptr<Line>> lines_;
 		shared_ptr<IFontAtlas> const font_;
 
 	public:
 		Console(shared_ptr<IFontAtlas> const& font)
 			: max_format_cch_(1024)
+			, format_buff_((char*)malloc(max_format_cch_ + 1), free)
 			, font_(font) 		
 		{
-			format_buff_.reserve(max_format_cch_);
 		}
 
 		void writeln(int32_t index, std::string const& text) override
@@ -88,10 +88,14 @@ namespace {
 			va_list args;
 			va_start(args, msg);
 			auto const ret = vsnprintf(
-				&format_buff_[0], max_format_cch_, msg, args);
-			assert(ret >= 0 && ret < max_format_cch_);
-			
-			writeln(index, format_buff_);
+				format_buff_.get(), max_format_cch_, msg, args);
+
+			if (ret >= 0 && ret < max_format_cch_) {
+				writeln(index, string(format_buff_.get(), ret));
+			}
+			else {
+				assert(0);
+			}
 		}
 
 	private:
