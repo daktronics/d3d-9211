@@ -1,5 +1,7 @@
 #include "scene.h"
 #include "util.h"
+#include "assets.h"
+#include "console.h"
 
 #include <d3d9.h>
 
@@ -279,6 +281,8 @@ namespace {
 		shared_ptr<Texture2D> pattern_;
 		
 		float spin_angle_;
+		
+		shared_ptr<IConsole> console_;
 
 	public:
 		Renderer(
@@ -293,6 +297,10 @@ namespace {
 		{
 			spin_angle_ = 0.0f;
 			device_->SetRenderState(D3DRS_LIGHTING, 0);
+
+			// initialize our console for stats
+			auto const font = assets_->load_font(assets_->locate("console.atlas"));
+			console_ = create_console(font);
 		}
 
 		string gpu() const override 
@@ -322,6 +330,12 @@ namespace {
 		void tick(double) override
 		{
 			spin_angle_ = spin_angle_ + static_cast<float>(1 * (PI / 180.0));
+
+			if (console_) 
+			{
+				console_->writelnf(0, "%dx%d", width(), height());
+
+			}
 		}
 
 		void clear(float red, float green, float blue, float alpha)

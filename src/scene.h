@@ -1,6 +1,9 @@
 #pragma once
 
-#include "assets.h"
+#include <string>
+#include <memory>
+
+class IAssets;
 
 //
 // surfaces (textures) are exchanged between producers and consumers

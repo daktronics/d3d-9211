@@ -26,13 +26,15 @@ void log_message(const char* msg, ...)
 {
 	// old-school, printf style logging
 	//
-	// not safe - keep it simple
+	// not safe by any means - just something simple
 	if (msg) 
 	{
-		char buff[1024];
+		const size_t max_cch = 1024;
+		char buff[max_cch+1];
 		va_list args;
 		va_start(args, msg);
-		vsprintf(buff, msg, args);
+		auto const ret = vsnprintf(buff, max_cch, msg, args);
+		assert(ret >= 0 && ret < max_cch);
 		OutputDebugStringA(buff);
 	}
 }
