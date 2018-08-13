@@ -266,7 +266,6 @@ namespace {
 		uint32_t index_capacity_;
 		uint32_t vertex_capacity_;
 		uint32_t vertex_size_;
-		uint32_t index_size_;
 		uint32_t triangles_;
 		
 		shared_ptr<IDirect3DIndexBuffer9> indices_;
@@ -278,7 +277,6 @@ namespace {
 			: index_capacity_(0)
 			, vertex_capacity_(0)
 			, vertex_size_(0)
-			, index_size_(0)
 			, triangles_(0)
 			, device_(device) {
 		}
@@ -289,7 +287,7 @@ namespace {
 			auto const font = console ? console->font() : nullptr;
 			if (!font) 
 			{
-				index_capacity_ = index_size_ = 0;
+				index_capacity_ = 0;
 				vertex_capacity_ = vertex_size_ = 0;
 				triangles_ = 0;
 				indices_.reset();
@@ -307,7 +305,7 @@ namespace {
 				return;
 			}
 
-			vertex_size_ = index_size_ = triangles_ = 0;
+			vertex_size_ = triangles_ = 0;
 
 			auto const image = font->image();
 			auto const width = image ? float(image->width()) : 0.0f;
@@ -331,7 +329,7 @@ namespace {
 			int32_t idx = 0;
 
 			D3DCOLOR color = 0xffffffff;
-			//D3DCOLOR color = 0xffff0000;
+			VERTEX* pv = pvert;
 
 			float x, y = 0;
 			auto const line_count = console->line_count();
@@ -345,30 +343,26 @@ namespace {
 					float v0 = glyph->top / height;
 					float u1 = (glyph->left + glyph->width) / width;
 					float v1 = (glyph->top + glyph->height) / height;
-
-					pvert->x = x; pvert->y = y; pvert->z = 0.0f;
-					pvert->color = color;
-					pvert->u = u0; pvert->v = v0;
-					pvert->x -= 0.5f; pvert->y -= 0.5f;
-					pvert++;
 					
-					pvert->x = x + glyph->width; pvert->y = y; pvert->z = 0.0f;
-					pvert->color = color;
-					pvert->u = u1; pvert->v = v0;
-					pvert->x -= 0.5f; pvert->y -= 0.5f;
-					pvert++;
+					pv->x = x; pv->y = y; pv->z = 0.0f;
+					pv->color = color;
+					pv->u = u0; pv->v = v0;
+					pv++;
+					
+					pv->x = x + glyph->width; pv->y = y; pv->z = 0.0f;
+					pv->color = color;
+					pv->u = u1; pv->v = v0;
+					pv++;
 
-					pvert->x = x; pvert->y = y + glyph->height; pvert->z = 0.0f;
-					pvert->color = color;
-					pvert->u = u0; pvert->v = v1;
-					pvert->x -= 0.5f; pvert->y -= 0.5f;
-					pvert++;
+					pv->x = x; pv->y = y + glyph->height; pv->z = 0.0f;
+					pv->color = color;
+					pv->u = u0; pv->v = v1;
+					pv++;
 
-					pvert->x = x + glyph->width; pvert->y = y + glyph->height; pvert->z = 0.0f;
-					pvert->color = color;
-					pvert->u = u1; pvert->v = v1;
-					pvert->x -= 0.5f; pvert->y -= 0.5f;
-					pvert++;
+					pv->x = x + glyph->width; pv->y = y + glyph->height; pv->z = 0.0f;
+					pv->color = color;
+					pv->u = u1; pv->v = v1;
+					pv++;
 
 					*pidx = idx;
 					*(pidx + 1) = idx + 1;
@@ -379,7 +373,6 @@ namespace {
 
 					pidx += 6;
 					vertex_size_ += 4;
-					index_size_ += 6;
 					idx += 4;
 					triangles_ += 2;
 
@@ -389,6 +382,13 @@ namespace {
 				if (!glyphs.empty()) {
 					y = y + glyphs.front()->height;
 				}
+			}
+
+			// center texels
+			pv = pvert;
+			for (uint32_t v = 0; v < vertex_size_; v++, pv++) {
+				pv->x -= 0.5f;
+				pv->y -= 0.5f;
 			}
 
 			indices_->Unlock();
@@ -542,14 +542,14 @@ namespace {
 
 			if (console_) 
 			{
-				console_->writelnf(0, "%dx%d", width(), height());				
-				console_->writelnf(1, "%s", to_timecode(t).c_str());
-				console_->writelnf(2, "frame: %06I64d", frame_);
-
-				degrees = degrees - (floor(degrees / 360.0) * 360.0);
-				console_->writelnf(3, "angle: %03d\xc2\xb0", static_cast<uint32_t>(degrees));
+				console_->writelnf(0, "D3D9 : %dx%d", width(), height());				
 				
-				console_->writelnf(4, "fps:   %3.2f", fps_);
+				degrees = degrees - (floor(degrees / 360.0) * 360.0);
+				console_->writelnf(1, "angle: %03d\xc2\xb0", static_cast<uint32_t>(degrees));
+				
+				console_->writelnf(2, "time : %s", to_timecode(t).c_str());
+				console_->writelnf(3, "frame: %06I64d", frame_);				
+				console_->writelnf(4, "fps  : %3.2f", fps_);
 
 				console_geometry_->update(console_);
 			}
@@ -660,7 +660,7 @@ namespace {
 			{
 				set_sampler_state(D3DTADDRESS_WRAP);
 				enable_blending(false);
-				pattern_quad_->draw(pattern_);
+				//pattern_quad_->draw(pattern_);
 			}
 
 			// draw the current frame to our preview (window swap chain)
@@ -734,6 +734,12 @@ namespace {
 			   { x + w, y + h, 0.5f, color, u, v }
 			};
 
+			for (size_t v = 0; v < sizeof(vertices) / sizeof(vertices[0]); ++v)
+			{
+				//vertices[v].x -= 0.5f;
+				//vertices[v].y -= 0.5f;			
+			}
+
 			void* p = nullptr;
 
 			vb->Lock(0, 0, (void**)&p, 0);
@@ -804,7 +810,7 @@ namespace {
 			if (console_geometry_) 
 			{
 				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_POINT);
-				enable_blending(false);
+				enable_blending(true);
 				console_geometry_->draw(console_font_);
 			}
 

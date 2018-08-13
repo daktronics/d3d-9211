@@ -98,8 +98,8 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	// this demo uses WIC to load images .. so we need COM
 	ComInitializer com_init;
 
-	uint32_t width = 1920;
-	uint32_t height = 1080;
+	uint32_t width = 1280;
+	uint32_t height = 720;
 
 	int args;
 	LPWSTR* arg_list = CommandLineToArgvW(GetCommandLineW(), &args);

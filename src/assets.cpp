@@ -454,7 +454,7 @@ namespace {
 		void generate_console_font()
 		{
 			auto const format = create_text_format(
-				monospace_family(), 32.0f, DWRITE_FONT_WEIGHT_BOLD);
+				monospace_family(), 28.0f, DWRITE_FONT_WEIGHT_BOLD);
 			if (!format) {
 				return;
 			}
@@ -476,11 +476,14 @@ namespace {
 			
 			// we're just assuming fixed-width font
 			auto metrics = measure(format, "W");
+
+			auto const cell_width = static_cast<uint32_t>(metrics.width + 0.5f);
+			auto const cell_height = static_cast<uint32_t>(metrics.height + 0.5f);
 			
 			uint32_t cols = 32;
 			uint32_t rows = (uint32_t(glyphs.size()) + (cols - 1)) / cols;
-			auto const width = static_cast<uint32_t>((metrics.width * cols) + 0.5f);
-			auto const height = static_cast<uint32_t>((metrics.height * rows) + 0.5f);
+			auto const width = cell_width * cols;
+			auto const height = cell_height * rows;
 
 			auto const canvas = create_canvas(width, height);
 			auto const ctx = create_context(canvas);
@@ -515,7 +518,7 @@ namespace {
 
 				D2D1_RECT_F box;
 				box.left = x;
-				box.top = y + metrics.height;
+				box.top = y + cell_height;
 				box.right = box.left;
 				box.bottom = box.top;
 
@@ -529,8 +532,8 @@ namespace {
 				glyph.code = g;
 				glyph.left = x;
 				glyph.top = y;
-				glyph.width = metrics.width;
-				glyph.height = metrics.height;
+				glyph.width = static_cast<float>(cell_width);
+				glyph.height = static_cast<float>(cell_height);
 
 				atlas.map(glyph);
 				
@@ -542,11 +545,11 @@ namespace {
 						D2D1::Point2F(0.0f, box.top), D2D1::Point2F(float(width), box.top), brush_grid.get());
 
 					x = 0.0f;
-					y = y + metrics.height;
+					y = y + cell_height;
 					c = 0;
 				}
 				else {
-					x = x + metrics.width;
+					x = x + cell_width;
 				}
 			}
 
