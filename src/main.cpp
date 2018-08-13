@@ -21,6 +21,7 @@ extern "C"
 }
 			
 HWND create_window(HINSTANCE instance);
+void zoom_to_screen(HWND window);
 void zoom_window(HWND window, float zoom);
 
 LRESULT CALLBACK wnd_proc(HWND, UINT, WPARAM, LPARAM);
@@ -106,32 +107,12 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	SetWindowLongPtr(win_main, GWLP_USERDATA, (LONG_PTR)consumer.get());
 	SetWindowLongPtr(win_preview, GWLP_USERDATA, (LONG_PTR)producer.get());
 
-	float zoom = 1.0f;
+	zoom_to_screen(win_main);
+	zoom_to_screen(win_preview);
 	
-	{ // zoom to fit on closest monitor
-
-		auto const mon = MonitorFromWindow(win_main, MONITOR_DEFAULTTONEAREST);
-		if (mon) 
-		{
-			MONITORINFO mi;
-			mi.cbSize = sizeof(mi);
-			GetMonitorInfo(mon, &mi);
-			while (zoom > 0.25f)
-			{
-				if ((width + 32) < uint32_t(mi.rcWork.right - mi.rcWork.left))
-				{
-					if ((height + 32) < uint32_t(mi.rcWork.bottom - mi.rcWork.top)) {
-						break;
-					}
-				}
-				zoom = zoom * 0.5f;
-			}
-		}
-	}
-
 	// make the windows visible now that we have D3D components ready
-	zoom_window(win_main, zoom);
-	zoom_window(win_preview, zoom);
+	ShowWindow(win_main, SW_NORMAL);
+	ShowWindow(win_preview, SW_NORMAL);
 
 	// load keyboard accelerators
 	auto const accel_table = 
@@ -177,6 +158,30 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	return 0;
 }
 
+void zoom_to_screen(HWND window)
+{
+	float zoom = 1.0f;
+	auto const mon = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+	if (mon)
+	{
+		RECT rc;
+		MONITORINFO mi;
+		mi.cbSize = sizeof(mi);
+		GetMonitorInfo(mon, &mi);
+		while (zoom > 0.25f)
+		{
+			zoom_window(window, zoom);
+			GetWindowRect(window, &rc);
+			if ((rc.right - rc.left) < (mi.rcWork.right - mi.rcWork.left)) {
+				if ((rc.bottom - rc.top) < (mi.rcWork.bottom - mi.rcWork.top)) {
+					break;
+				}
+			}
+			zoom = zoom * 0.5f;
+		}
+	}
+}
+
 void zoom_window(HWND window, float zoom)
 {
 	const IScene* scene = (const IScene*)GetWindowLongPtr(window, GWLP_USERDATA);
@@ -196,8 +201,6 @@ void zoom_window(HWND window, float zoom)
 		w + ((rc_outer.right - rc_outer.left) - (rc_inner.right - rc_inner.left)),
 		h + ((rc_outer.bottom - rc_outer.top) - (rc_inner.bottom - rc_inner.top)),
 		SWP_NOMOVE | SWP_NOZORDER);
-
-	ShowWindow(window, SW_NORMAL);
 }
 
 HWND create_window(HINSTANCE instance)
