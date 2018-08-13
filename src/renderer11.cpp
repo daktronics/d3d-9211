@@ -124,7 +124,7 @@ shared_ptr<IScene> create_consumer(
 	}
 
 	// create a D3D11 swapchain for the window
-	auto swapchain = dev->create_swapchain((HWND)native_window);
+	auto swapchain = dev->create_swapchain((HWND)native_window, width, height);
 	if (!swapchain) {
 		return nullptr;
 	}

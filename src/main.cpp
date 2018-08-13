@@ -21,7 +21,7 @@ extern "C"
 }
 			
 HWND create_window(HINSTANCE instance);
-void zoom_window(HWND window, shared_ptr<IScene> const& scene, float zoom);
+void zoom_window(HWND window, float zoom);
 
 LRESULT CALLBACK wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
@@ -48,6 +48,41 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	uint32_t width = 1920;
 	uint32_t height = 1080;
 
+	int args;
+	LPWSTR* arg_list = CommandLineToArgvW(GetCommandLineW(), &args);
+	if (arg_list)
+	{
+		for (int n = 1; n < args; ++n)
+		{
+			auto option = to_utf8(arg_list[n]);
+			if (option.substr(0, 2) == "--")
+			{
+				option = option.substr(2);
+
+				std::string key, value;
+				auto const eq = option.find('=');
+				if (eq != std::string::npos)
+				{
+					key = option.substr(0, eq);
+					value = option.substr(eq + 1);
+				}
+				else {
+					key = option;
+				}
+				
+				if (key == "size")
+				{
+					// split on 'x' (eg. 1920x1080)
+					auto const c = value.find('x');
+					if (c != std::string::npos) {
+						width = to_int(value.substr(0, c), 0);
+						height = to_int(value.substr(c + 1), 0);
+					}
+				}
+			}
+		}
+	}
+
 	// create window(s) with our specific size
 	auto const win_main = create_window(instance);
 	if (!IsWindow(win_main)) {
@@ -64,17 +99,39 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	auto assets = create_assets();
 
 	assets->generate(width, height);
-
-	auto const f = assets->load_font(assets->locate("console.atlas"));
-
-
-
+	
 	auto producer = create_producer(win_preview, width, height, assets);
 	auto consumer = create_consumer(win_main, width, height, producer);
 
+	SetWindowLongPtr(win_main, GWLP_USERDATA, (LONG_PTR)consumer.get());
+	SetWindowLongPtr(win_preview, GWLP_USERDATA, (LONG_PTR)producer.get());
+
+	float zoom = 1.0f;
+	
+	{ // zoom to fit on closest monitor
+
+		auto const mon = MonitorFromWindow(win_main, MONITOR_DEFAULTTONEAREST);
+		if (mon) 
+		{
+			MONITORINFO mi;
+			mi.cbSize = sizeof(mi);
+			GetMonitorInfo(mon, &mi);
+			while (zoom > 0.25f)
+			{
+				if ((width + 32) < uint32_t(mi.rcWork.right - mi.rcWork.left))
+				{
+					if ((height + 32) < uint32_t(mi.rcWork.bottom - mi.rcWork.top)) {
+						break;
+					}
+				}
+				zoom = zoom * 0.5f;
+			}
+		}
+	}
+
 	// make the windows visible now that we have D3D components ready
-	zoom_window(win_main, consumer, 1.0f);
-	zoom_window(win_preview, producer, 1.0f);
+	zoom_window(win_main, zoom);
+	zoom_window(win_preview, zoom);
 
 	// load keyboard accelerators
 	auto const accel_table = 
@@ -109,22 +166,6 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 
 			// our main window is vsync'd for the consumer
 			consumer->present(sync_interval_);
-
-			// is there a request to resize ... if so, resize
-			// both the swapchain and the composition
-			/*if (resize_) 
-			{
-				RECT rc;
-				GetClientRect(window, &rc);
-				width = rc.right - rc.left;
-				height = rc.bottom - rc.top;
-				if (width && height)
-				{
-					resize_ = false;
-					composition_->resize(sync_interval_ != 0, width, height);
-					swapchain->resize(width, height);
-				}
-			}*/
 		}
 	}
 
@@ -136,8 +177,13 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	return 0;
 }
 
-void zoom_window(HWND window, shared_ptr<IScene> const& scene, float zoom)
+void zoom_window(HWND window, float zoom)
 {
+	const IScene* scene = (const IScene*)GetWindowLongPtr(window, GWLP_USERDATA);
+	if (!scene) {
+		return;
+	}
+
 	// AdjustWindowRect can do something similar
 	RECT rc_outer, rc_inner;
 	GetWindowRect(window, &rc_outer);
@@ -190,6 +236,24 @@ HWND create_window(HINSTANCE instance)
 	return window;
 }
 
+void on_command(HWND window, uint32_t id)
+{
+	switch (id) 
+	{
+		case ID_WINDOW_VSYNC:
+			sync_interval_ = sync_interval_ ? 0 : 1;
+			resize_ = true;
+			break;
+
+		case ID_VIEW_ZOOM25: zoom_window(window, 0.25f); break;
+		case ID_VIEW_ZOOM50: zoom_window(window, 0.50f); break;
+		case ID_VIEW_ZOOM100: zoom_window(window, 1.0f); break;
+		case ID_VIEW_ZOOM200: zoom_window(window, 2.0f); break;
+
+		default: break;
+	}
+}
+
 LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	switch (msg)
@@ -203,20 +267,27 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 			break;
 
 		case WM_COMMAND:
-			if (LOWORD(wparam) == ID_WINDOW_VSYNC) {
-				sync_interval_ = sync_interval_ ? 0 : 1;
-				resize_ = true;
-			}
+			on_command(hwnd, LOWORD(wparam));
 			break;
 
-		case WM_SIZE: 
-			// signal that we want a resize of output
-			resize_ = true;
+		case WM_SIZE:
 			break;
 
 		case WM_DESTROY:
 			PostQuitMessage(0);
 			break;
+			
+		case WM_CONTEXTMENU:
+			{
+				auto const menu = LoadMenu(
+					GetModuleHandle(0), MAKEINTRESOURCE(IDR_APPLICATION));
+				auto const submenu = GetSubMenu(menu, 0);
+				auto const x = ((int)(short)LOWORD(lparam));
+				auto const y = ((int)(short)HIWORD(lparam));
+				TrackPopupMenu(submenu, TPM_LEFTALIGN, x, y, 0, hwnd, 0);
+			}
+			break;
+
 		default: 
 			return DefWindowProc(hwnd, msg, wparam, lparam);
 	}
