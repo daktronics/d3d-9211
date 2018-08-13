@@ -629,6 +629,8 @@ namespace {
 			D2D1_RENDER_TARGET_PROPERTIES props = {};
 			props.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
 			props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+			props.dpiX = 96.0f;
+			props.dpiY = 96.0f;
 			
 			ID2D1RenderTarget* rt = nullptr;
 			auto const hr = d2d_->CreateWicBitmapRenderTarget(canvas.get(), &props, &rt);
