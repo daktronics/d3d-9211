@@ -41,6 +41,58 @@ public:
 	~ComInitializer() { CoUninitialize(); }
 };
 
+class Clock
+{
+private:
+	int64_t start_time_;
+	int64_t pause_time_;
+
+public:
+	Clock()
+		: pause_time_(-1ll) {
+		start();
+	}
+
+	void start() 
+	{
+		auto const t = time_now();
+		if (pause_time_ >= 0ll) {
+			start_time_ = t - (pause_time_ - start_time_);
+		}
+		else {
+			start_time_ = t;
+		}
+		pause_time_ = -1ll;
+	}
+
+	void stop() {
+		start_time_ = -1ll;
+	}
+
+	void pause() {
+		if (start_time_ >= 0ll) {
+			pause_time_ = time_now();
+		}
+	}
+
+	bool is_paused() const {
+		return pause_time_ >= 0ll;
+	}
+
+	int64_t now() const {
+		if (start_time_ >= 0ll) 
+		{
+			if (pause_time_ >= 0ll) {
+				return pause_time_ - start_time_;
+			}
+			return time_now() - start_time_;
+		}
+		return 0ll;
+	}
+};
+
+Clock clock_;
+
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 {
 	// this demo uses WIC to load images .. so we need COM
@@ -118,7 +170,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	auto const accel_table = 
 		LoadAccelerators(instance, MAKEINTRESOURCE(IDR_APPLICATION));
 
-	auto const start_time = time_now();
+	clock_.start();
 
 	// main message pump for our application
 	MSG msg = {};
@@ -134,12 +186,18 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 		}
 		else
 		{
-			auto const t = (time_now() - start_time) / 1000000.0;
+			auto const t = clock_.now() / 1000000.0;
 
-			producer->tick(t);
+			if (!clock_.is_paused()) {
+				producer->tick(t);
+			}
+
 			producer->render();
 
-			consumer->tick(t);
+			if (!clock_.is_paused()) {
+				producer->tick(t);
+			}
+			
 			consumer->render();
 
 			// our preview window shows the producer ... without vsync
@@ -247,6 +305,15 @@ void on_command(HWND window, uint32_t id)
 			sync_interval_ = sync_interval_ ? 0 : 1;
 			resize_ = true;
 			break;
+
+		case ID_CLOCK_PAUSE:
+			if (clock_.is_paused()) {
+				clock_.start();
+			}
+			else {
+				clock_.pause();
+			}
+			break;			
 
 		case ID_VIEW_ZOOM25: zoom_window(window, 0.25f); break;
 		case ID_VIEW_ZOOM50: zoom_window(window, 0.50f); break;
