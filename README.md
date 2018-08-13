@@ -23,5 +23,11 @@ The scene dimensions can be specified as a command line argument: (--size=1920x1
 
 ![Screenshot][demo1]
 
+The Direct3D 9 producer will render the scene with transparency - the background color/pattern can be controlled using the context-menu within the window.
+
+![Background][demo2]
+
 [demo1]: https://user-images.githubusercontent.com/2717038/44046935-986c79ce-9ef2-11e8-9639-8ac3d9d1278a.png "Direct3D 9 to 11"
+[demo2]: https://user-images.githubusercontent.com/2717038/44047170-3fef8e84-9ef3-11e8-9414-47135b649064.png "Transparency Pattern"
+
 
