@@ -7,6 +7,8 @@
 
 #include <fstream>
 #include <sstream>
+#include <thread>
+#include <atomic>
 
 using namespace std;
 
@@ -41,6 +43,9 @@ public:
 	~ComInitializer() { CoUninitialize(); }
 };
 
+//
+// a pausable-clock
+//
 class Clock
 {
 private:
@@ -65,8 +70,8 @@ public:
 		pause_time_ = -1ll;
 	}
 
-	void stop() {
-		start_time_ = -1ll;
+	void stop() { 
+		start_time_ = pause_time_ = -1ll; 
 	}
 
 	void pause() {
@@ -92,14 +97,67 @@ public:
 };
 
 Clock clock_;
+atomic_bool abort_;
+
+//
+// synchronus render loop for update + render on both producer and consumer
+//
+void render_loop_sync(
+	shared_ptr<IScene> const& producer, shared_ptr<IScene> const& consumer)
+{
+	while (!abort_)
+	{
+		auto const t = clock_.now() / 1000000.0;
+
+		// update + render the producer
+		if (!clock_.is_paused()) {
+			producer->tick(t);
+		}
+		producer->render();
+
+		// update + render the consumer
+		if (!clock_.is_paused()) {
+			consumer->tick(t);
+		}
+		consumer->render();
+
+		// our preview window shows the producer ... without vsync
+		producer->present(0);
+
+		// our main window is vsync'd for the consumer
+		consumer->present(sync_interval_);
+	}
+}
+
+//
+// render loop to drive a single scene ... can be used to run
+// the producer and consumer concurrently
+//
+void render_loop(shared_ptr<IScene> const& scene, bool producer)
+{
+	while (!abort_)
+	{
+		auto const t = clock_.now() / 1000000.0;
+
+		// update + render the scene
+		if (!clock_.is_paused()) {
+			scene->tick(t);
+		}
+		scene->render();
+
+		// for producer ... no vsync
+		scene->present(producer ? 0 : sync_interval_);
+	}
+}
+
 
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 {
 	// this demo uses WIC to load images .. so we need COM
 	ComInitializer com_init;
 
-	uint32_t width = 1280;
-	uint32_t height = 720;
+	uint32_t width = 0;
+	uint32_t height = 0;
 
 	int args;
 	LPWSTR* arg_list = CommandLineToArgvW(GetCommandLineW(), &args);
@@ -149,6 +207,35 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 		return 0;
 	}
 
+	// find a decent default size so on startup 
+	// we're not scaling at all
+	if (!width || !height) 
+	{
+		auto const mon = MonitorFromWindow(win_main, MONITOR_DEFAULTTONEAREST);
+		if (mon) 
+		{
+			MONITORINFO mi;
+			mi.cbSize = sizeof(mi);
+			GetMonitorInfo(mon, &mi);
+
+			uint32_t n = 0;
+			uint32_t widths[] = { 1920, 1280, 960, 640 };
+			while (n < sizeof(widths) / sizeof(widths[0]))
+			{
+				width = widths[n++];
+				if (int32_t(width + 32) <= (mi.rcWork.right - mi.rcWork.left)) {
+					break;
+				}				
+			}		
+			height = width * 9 / 16;
+		}
+
+		if (!width || !height) {
+			width = 1280;
+			height = 720;
+		}
+	}
+
 	auto assets = create_assets();
 
 	assets->generate(width, height);
@@ -172,40 +259,34 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 
 	clock_.start();
 
+	vector<shared_ptr<thread>> threads;
+
+	{ // add a single rendering thread
+
+		threads.push_back(make_shared<thread>(render_loop_sync, producer, consumer));
+	}
+
+	/*{ // add rendering threads for each scene
+		
+		threads.push_back(make_shared<thread>(render_loop, producer, true));
+		threads.push_back(make_shared<thread>(render_loop, consumer, false));
+	}*/
+
 	// main message pump for our application
 	MSG msg = {};
-	while (msg.message != WM_QUIT)
+	while (GetMessage(&msg, 0, 0, 0))
 	{
-		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+		if (!TranslateAccelerator(win_main, accel_table, &msg))
 		{
-			if (!TranslateAccelerator(win_main, accel_table, &msg))
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
 		}
-		else
-		{
-			auto const t = clock_.now() / 1000000.0;
-
-			// update + render the producer
-			if (!clock_.is_paused()) {
-				producer->tick(t);
-			}
-			producer->render();
-
-			// update + render the consumer
-			if (!clock_.is_paused()) {
-				consumer->tick(t);
-			}			
-			consumer->render();
-
-			// our preview window shows the producer ... without vsync
-			producer->present(0);
-
-			// our main window is vsync'd for the consumer
-			consumer->present(sync_interval_);
-		}
+	}
+	
+	// stop all rendering threads
+	abort_ = true;
+	for (auto const& t : threads) {
+		t->join();
 	}
 
 	// drop before COM is uninitialized
@@ -220,23 +301,24 @@ void zoom_to_screen(HWND window)
 {
 	float zoom = 1.0f;
 	auto const mon = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
-	if (mon)
+	if (!mon) {
+		return;
+	}
+	
+	RECT rc;
+	MONITORINFO mi;
+	mi.cbSize = sizeof(mi);
+	GetMonitorInfo(mon, &mi);
+	while (zoom > 0.25f)
 	{
-		RECT rc;
-		MONITORINFO mi;
-		mi.cbSize = sizeof(mi);
-		GetMonitorInfo(mon, &mi);
-		while (zoom > 0.25f)
-		{
-			zoom_window(window, zoom);
-			GetWindowRect(window, &rc);
-			if ((rc.right - rc.left) < (mi.rcWork.right - mi.rcWork.left)) {
-				if ((rc.bottom - rc.top) < (mi.rcWork.bottom - mi.rcWork.top)) {
-					break;
-				}
+		zoom_window(window, zoom);
+		GetWindowRect(window, &rc);
+		if ((rc.right - rc.left) < (mi.rcWork.right - mi.rcWork.left)) {
+			if ((rc.bottom - rc.top) < (mi.rcWork.bottom - mi.rcWork.top)) {
+				break;
 			}
-			zoom = zoom * 0.5f;
 		}
+		zoom = zoom * 0.5f;
 	}
 }
 
