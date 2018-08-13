@@ -809,6 +809,13 @@ namespace {
 			// draw the console
 			if (console_geometry_) 
 			{
+				D3DMATRIX mtrans;
+				matrix_translation(mtrans, 10.0f, 10.0f, 0.0f);
+
+				matrix_multiply(mworld, mworld, mtrans);
+
+				device_->SetTransform(D3DTS_WORLD, &mworld);
+
 				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_LINEAR);
 				enable_blending(true);
 				console_geometry_->draw(console_font_);
@@ -817,13 +824,14 @@ namespace {
 			// draw the spinning bar
 			if (spinner_quad_)
 			{ 
+				matrix_identity(mworld);
+				
 				D3DMATRIX mtrans;
 				matrix_translation(mtrans,
 					(width() / 2.0f),
 					(height() / 2.0f), 0.0f);
 
 				D3DMATRIX mrotate;
-				matrix_identity(mrotate);
 				matrix_rotate_z(mrotate, float(spin_angle_));
 				matrix_multiply(mworld, mrotate, mtrans);
 

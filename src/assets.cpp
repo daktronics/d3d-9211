@@ -540,9 +540,9 @@ namespace {
 				if (++c >= cols) 
 				{
 					// for debugging ... draw horz grid line
-					ctx->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-					ctx->DrawLine(
-						D2D1::Point2F(0.0f, box.top), D2D1::Point2F(float(width), box.top), brush_grid.get());
+					//ctx->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+					//ctx->DrawLine(
+					//	D2D1::Point2F(0.0f, box.top), D2D1::Point2F(float(width), box.top), brush_grid.get());
 
 					x = 0.0f;
 					y = y + cell_height;
