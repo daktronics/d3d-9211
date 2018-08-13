@@ -403,7 +403,6 @@ namespace {
 				device_->SetTexture(0, *texture);
 				device_->SetIndices(indices_.get());
 				device_->SetStreamSource(0, vertices_.get(), 0, sizeof(VERTEX));
-
 				device_->DrawIndexedPrimitive(
 					D3DPT_TRIANGLELIST, 0, 0, vertex_size_, 0, triangles_);
 			}
@@ -582,6 +581,7 @@ namespace {
 		{
 			auto const target = queue_->checkout(100);
 			if (!target) {
+				return;
 			}
 			
 			clear(bg_color_);
@@ -626,7 +626,7 @@ namespace {
 			queue_->produce(target);
 
 			auto const now = time_now();
-			if ((now - fps_start_) > 1000000)
+			if ((now - fps_start_) >= 1000000)
 			{
 				fps_ = (frame_ - fps_frame_) / double((now - fps_start_) / 1000000.0);
 				fps_frame_ = frame_;
@@ -1015,7 +1015,7 @@ shared_ptr<IScene> create_producer(
 	
 	auto const producer = make_shared<Renderer>(assets, dev, swapchain, queue);
 	
-	string title("Direct3D9 Producer");
+	string title("Direct3D 9 Producer");
 	title.append(" - [gpu: ");
 	title.append(producer->gpu());
 	title.append("]");

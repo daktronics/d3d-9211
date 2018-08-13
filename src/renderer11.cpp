@@ -149,7 +149,7 @@ shared_ptr<IScene> create_consumer(
 	auto const consumer = make_shared<Renderer>(
 		dev, swapchain, producer->queue());
 
-	string title("Direct3D11 Consumer");
+	string title("Direct3D 11 Consumer");
 	title.append(" - [gpu: ");
 	title.append(consumer->gpu());
 	title.append("]");

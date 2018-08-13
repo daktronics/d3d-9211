@@ -188,16 +188,16 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 		{
 			auto const t = clock_.now() / 1000000.0;
 
+			// update + render the producer
 			if (!clock_.is_paused()) {
 				producer->tick(t);
 			}
-
 			producer->render();
 
+			// update + render the consumer
 			if (!clock_.is_paused()) {
-				producer->tick(t);
-			}
-			
+				consumer->tick(t);
+			}			
 			consumer->render();
 
 			// our preview window shows the producer ... without vsync
