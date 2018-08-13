@@ -28,7 +28,7 @@ The Direct3D 9 producer will render the scene with transparency - the background
 ![Background][demo2]
 
 ## Design
-The application uses a queue of frames to synchronize texture access between D3D 9 and 11.  The producer will render to offscreen textures, then place them on a queue for consumption.  The consumer will read from the queue and render the texture into a D3D11 scene.  It will then place the texture back into a pool so the producer can re-use an allocated texture.
+The application uses a queue of frames to synchronize texture access between D3D 9 and 11.  The producer will render to offscreen shared textures, then place them on a queue for consumption.  The consumer will read a shared texture from the queue and render it within a D3D11 scene.  It will then place the texture back into a pool so the producer can re-use an allocated texture.
 
 ![Design][drawing]
 
