@@ -658,7 +658,7 @@ namespace {
 			// draw transparency pattern if we have one
 			if (pattern_quad_ && pattern_)
 			{
-				set_sampler_state(D3DTADDRESS_WRAP);
+				set_sampler_state(D3DTADDRESS_WRAP, D3DTEXF_POINT);
 				enable_blending(false);
 				//pattern_quad_->draw(pattern_);
 			}
@@ -666,7 +666,7 @@ namespace {
 			// draw the current frame to our preview (window swap chain)
 			if (preview_quad_)
 			{
-				set_sampler_state(D3DTADDRESS_CLAMP);
+				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_LINEAR);
 				enable_blending(true);
 				preview_quad_->draw(texture);
 			}
@@ -756,7 +756,7 @@ namespace {
 			device_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 		}
 
-		void set_sampler_state(DWORD addressing, DWORD filtering= D3DTEXF_LINEAR)
+		void set_sampler_state(DWORD addressing, DWORD filtering)
 		{
 			device_->SetSamplerState(0, D3DSAMP_MINFILTER, filtering);
 			device_->SetSamplerState(0, D3DSAMP_MAGFILTER, filtering);
@@ -801,7 +801,7 @@ namespace {
 			// draw background image if we have one
 			if (bg_quad_ && bg_)
 			{
-				set_sampler_state(D3DTADDRESS_CLAMP);
+				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_LINEAR);
 				enable_blending(true);
 				bg_quad_->draw(bg_);
 			}
@@ -809,7 +809,7 @@ namespace {
 			// draw the console
 			if (console_geometry_) 
 			{
-				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_POINT);
+				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_LINEAR);
 				enable_blending(true);
 				console_geometry_->draw(console_font_);
 			}
