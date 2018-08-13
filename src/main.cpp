@@ -28,9 +28,6 @@ void zoom_window(HWND window, float zoom);
 
 LRESULT CALLBACK wnd_proc(HWND, UINT, WPARAM, LPARAM);
 
-int sync_interval_ = 1;
-bool resize_ = false;
-
 //
 // simple RIAA for CoInitialize/CoUninitialize
 //
@@ -125,7 +122,7 @@ void render_loop_sync(
 		producer->present(0);
 
 		// our main window is vsync'd for the consumer
-		consumer->present(sync_interval_);
+		consumer->present(1);
 	}
 }
 
@@ -146,7 +143,7 @@ void render_loop(shared_ptr<IScene> const& scene, bool producer)
 		scene->render();
 
 		// for producer ... no vsync
-		scene->present(producer ? 0 : sync_interval_);
+		scene->present(producer ? 0 : 1);
 	}
 }
 
@@ -194,6 +191,10 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 		}
 	}
 
+	// load keyboard accelerators
+	auto const accel_table =
+		LoadAccelerators(instance, MAKEINTRESOURCE(IDR_APPLICATION));
+
 	// create window(s) with our specific size
 	auto const win_main = create_window(instance);
 	if (!IsWindow(win_main)) {
@@ -235,7 +236,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 			height = 720;
 		}
 	}
-
+	
 	auto assets = create_assets();
 
 	assets->generate(width, height);
@@ -252,14 +253,11 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
 	// make the windows visible now that we have D3D components ready
 	ShowWindow(win_main, SW_NORMAL);
 	ShowWindow(win_preview, SW_NORMAL);
-
-	// load keyboard accelerators
-	auto const accel_table = 
-		LoadAccelerators(instance, MAKEINTRESOURCE(IDR_APPLICATION));
-
+	
 	clock_.start();
 
 	vector<shared_ptr<thread>> threads;
+	abort_ = false;
 
 	{ // add a single rendering thread
 
@@ -392,8 +390,6 @@ void on_command(HWND window, uint32_t id)
 	switch (id) 
 	{
 		case ID_WINDOW_VSYNC:
-			sync_interval_ = sync_interval_ ? 0 : 1;
-			resize_ = true;
 			break;
 
 		case ID_CLOCK_PAUSE:
@@ -405,7 +401,7 @@ void on_command(HWND window, uint32_t id)
 			}
 			break;	
 
-		case ID_BACKGROUND_NONE:
+		case ID_BACKGROUND_NONE: 
 			set_background(window, "#00000000");
 			break;
 		case ID_BACKGROUND_TRANSPARENT:
@@ -433,20 +429,20 @@ void on_command(HWND window, uint32_t id)
 	}
 }
 
-LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+LRESULT CALLBACK wnd_proc(HWND window, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	switch (msg)
 	{
 		case WM_PAINT:
 			{
 				PAINTSTRUCT ps;
-				BeginPaint(hwnd, &ps);
-				EndPaint(hwnd, &ps);
+				BeginPaint(window, &ps);
+				EndPaint(window, &ps);
 			}
 			break;
 
 		case WM_COMMAND:
-			on_command(hwnd, LOWORD(wparam));
+			on_command(window, LOWORD(wparam));
 			break;
 
 		case WM_SIZE:
@@ -463,12 +459,12 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 				auto const submenu = GetSubMenu(menu, 0);
 				auto const x = ((int)(short)LOWORD(lparam));
 				auto const y = ((int)(short)HIWORD(lparam));
-				TrackPopupMenu(submenu, TPM_LEFTALIGN, x, y, 0, hwnd, 0);
+				TrackPopupMenu(submenu, TPM_LEFTALIGN, x, y, 0, window, 0);
 			}
 			break;
 
 		default: 
-			return DefWindowProc(hwnd, msg, wparam, lparam);
+			return DefWindowProc(window, msg, wparam, lparam);
 	}
 	return 0;
 }
