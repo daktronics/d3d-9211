@@ -36,6 +36,6 @@ The interaction with the queue and pool prevents a texture from being used by bo
 
 [demo1]: https://user-images.githubusercontent.com/2717038/44046935-986c79ce-9ef2-11e8-9639-8ac3d9d1278a.png "Direct3D 9 to 11"
 [demo2]: https://user-images.githubusercontent.com/2717038/44047170-3fef8e84-9ef3-11e8-9414-47135b649064.png "Transparency Pattern"
-[drawing]: https://user-images.githubusercontent.com/2717038/44048069-f1d329b0-9ef5-11e8-9b47-8f778567f5fa.png "Synchronization"
+[drawing]: https://user-images.githubusercontent.com/2717038/44048747-e4cddde4-9ef7-11e8-9045-4d214b38b451.png "Synchronization"
 
 
