@@ -17,7 +17,10 @@ namespace {
 		shared_ptr<d3d11::Geometry> geometry_;
 		shared_ptr<d3d11::Effect> effect_;		
 		shared_ptr<ISurface> surface_;
-		map<void*, shared_ptr<d3d11::Texture2D>> textures_;		
+		map<void*, shared_ptr<d3d11::Texture2D>> textures_;	
+
+		color bg_color_;
+		bool show_transparency_;
 
 	public:
 		Renderer(shared_ptr<d3d11::Device> const& device,
@@ -27,6 +30,8 @@ namespace {
 			, swapchain_(swapchain)
 			, queue_(queue)
 		{
+			show_transparency_ = false;
+			bg_color_ = color(0.0f, 0.0f, .90f, 1.0f);
 		}
 
 		string gpu() const override {
@@ -41,6 +46,18 @@ namespace {
 			return swapchain_ ? swapchain_->height() : 0;
 		}
 
+		void set_background(string const& bg) override
+		{
+			if (bg == "transparent") {
+				bg_color_ = color();
+				show_transparency_ = true;
+			}
+			else {
+				bg_color_ = parse_color(bg);
+				show_transparency_ = false;
+			}
+		}
+
 		void tick(double) override
 		{
 		}
@@ -51,7 +68,7 @@ namespace {
 
 			d3d11::ScopedBinder<d3d11::SwapChain> bind(ctx, swapchain_);
 
-			swapchain_->clear(0.0f, 0.0f, 0.90f, 1.0f);
+			swapchain_->clear(bg_color_.r, bg_color_.g, bg_color_.b, bg_color_.a);
 
 			if (!geometry_) {
 				geometry_ = device_->create_quad(0.0f, 0.0f, 1.0f, 1.0f, false);

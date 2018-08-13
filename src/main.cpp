@@ -261,6 +261,14 @@ void zoom_window(HWND window, float zoom)
 		SWP_NOMOVE | SWP_NOZORDER);
 }
 
+void set_background(HWND window, string const& bg)
+{
+	IScene* scene = (IScene*)GetWindowLongPtr(window, GWLP_USERDATA);
+	if (scene) {
+		scene->set_background(bg);
+	}
+}
+
 HWND create_window(HINSTANCE instance)
 {
 	LPCWSTR class_name = L"_main_window_";
@@ -313,7 +321,26 @@ void on_command(HWND window, uint32_t id)
 			else {
 				clock_.pause();
 			}
-			break;			
+			break;	
+
+		case ID_BACKGROUND_NONE:
+			set_background(window, "#00000000");
+			break;
+		case ID_BACKGROUND_TRANSPARENT:
+			set_background(window, "transparent");
+			break;
+		case ID_BACKGROUND_BLACK:
+			set_background(window, "#FF000000");
+			break;
+		case ID_BACKGROUND_RED:
+			set_background(window, "#FFE60000");
+			break;
+		case ID_BACKGROUND_GREEN:
+			set_background(window, "#FF00E600");
+			break;
+		case ID_BACKGROUND_BLUE:
+			set_background(window, "#FF0000E6");
+			break;
 
 		case ID_VIEW_ZOOM25: zoom_window(window, 0.25f); break;
 		case ID_VIEW_ZOOM50: zoom_window(window, 0.50f); break;

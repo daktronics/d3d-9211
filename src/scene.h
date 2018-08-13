@@ -64,6 +64,8 @@ public:
 	virtual uint32_t width() const = 0;
 	virtual uint32_t height() const = 0;
 
+	virtual void set_background(std::string const&) = 0;
+
 	virtual void tick(double) = 0;
 	virtual void render() = 0;
 	virtual void present(int32_t) = 0;

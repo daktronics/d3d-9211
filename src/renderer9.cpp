@@ -466,8 +466,8 @@ namespace {
 		shared_ptr<ISurfaceQueue> const queue_;
 		shared_ptr<IDirect3DQuery9> flush_query_;
 		
-		shared_ptr<Quad> bg_quad_;
-		shared_ptr<Texture2D> bg_;
+		shared_ptr<Quad> meter_quad_;
+		shared_ptr<Texture2D> meter_;
 
 		shared_ptr<Quad> preview_quad_;
 		shared_ptr<Quad> spinner_quad_;
@@ -480,6 +480,9 @@ namespace {
 		double fps_;
 		int64_t fps_start_;
 		int64_t fps_frame_;
+
+		color bg_color_;
+		bool show_transparency_;
 		
 		shared_ptr<Texture2D> console_font_;
 		shared_ptr<ConsoleGeometry> console_geometry_;
@@ -503,6 +506,8 @@ namespace {
 		{
 			spin_angle_ = 0.0;
 			device_->SetRenderState(D3DRS_LIGHTING, 0);
+
+			show_transparency_ = true;
 
 			// initialize our console for stats
 			auto const font = assets_->load_font(assets_->locate("console.atlas"));
@@ -532,6 +537,18 @@ namespace {
 		uint32_t height() const { 
 			return frame_buffer_ ? frame_buffer_->height() : 0;
 		}
+		
+		void set_background(string const& bg) override
+		{
+			if (bg == "transparent") {
+				bg_color_ = color();
+				show_transparency_ = true;
+			}
+			else {
+				bg_color_ = parse_color(bg);
+				show_transparency_ = false;
+			}
+		}
 
 		void tick(double t) override
 		{
@@ -554,11 +571,11 @@ namespace {
 				console_geometry_->update(console_);
 			}
 		}
-
-		void clear(float red, float green, float blue, float alpha)
+		
+		void clear(color const& c)
 		{
-			auto const color = D3DCOLOR_COLORVALUE(red, green, blue, alpha);
-			device_->Clear(0, nullptr, D3DCLEAR_TARGET, color, 1.0f, 0);
+			auto const rgba = D3DCOLOR_COLORVALUE(c.r, c.g, c.b, c.a);
+			device_->Clear(0, nullptr, D3DCLEAR_TARGET, rgba, 1.0f, 0);
 		}
 
 		void render() override
@@ -567,7 +584,7 @@ namespace {
 			if (!target) {
 			}
 			
-			clear(0.0f, 0.0f, 0.0f, 0.0f);
+			clear(bg_color_);
 			
 			device_->BeginScene();
 
@@ -590,7 +607,7 @@ namespace {
 			{
 				buffer = frame_buffer_->bind(target->share_handle());
 					
-				clear(0.0f, 0.0f, 0.0f, 0.0f);
+				clear(color(0.0f, 0.0f, 0.0f, 0.0f));
 	
 				render_scene();
 					
@@ -656,11 +673,11 @@ namespace {
 			device_->SetTransform(D3DTS_WORLD, &mworld);
 
 			// draw transparency pattern if we have one
-			if (pattern_quad_ && pattern_)
+			if (show_transparency_ && pattern_quad_ && pattern_)
 			{
 				set_sampler_state(D3DTADDRESS_WRAP, D3DTEXF_POINT);
 				enable_blending(false);
-				//pattern_quad_->draw(pattern_);
+				pattern_quad_->draw(pattern_);
 			}
 
 			// draw the current frame to our preview (window swap chain)
@@ -767,11 +784,11 @@ namespace {
 		void render_scene()
 		{
 			// load background image
-			if (!bg_)
+			if (!meter_)
 			{
-				bg_ = load_texture("d3d9_meter.png");
-				if (!bg_quad_ && bg_) {
-					bg_quad_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
+				meter_ = load_texture("d3d9_meter.png");
+				if (!meter_quad_ && meter_) {
+					meter_quad_ = create_quad(0.0f, 0.0f, float(width()), float(height()));
 				}
 			}
 
@@ -798,12 +815,12 @@ namespace {
 			matrix_identity(mworld);
 			device_->SetTransform(D3DTS_WORLD, &mworld);
 
-			// draw background image if we have one
-			if (bg_quad_ && bg_)
+			// draw meter image if we have one
+			if (meter_quad_ && meter_)
 			{
 				set_sampler_state(D3DTADDRESS_CLAMP, D3DTEXF_LINEAR);
 				enable_blending(true);
-				bg_quad_->draw(bg_);
+				meter_quad_->draw(meter_);
 			}
 
 			// draw the console

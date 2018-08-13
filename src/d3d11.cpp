@@ -23,7 +23,6 @@ namespace d3d11 {
 		ctx_->Flush();
 	}
 
-
 	SwapChain::SwapChain(
 				IDXGISwapChain* swapchain, 
 				ID3D11RenderTargetView* rtv,

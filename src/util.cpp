@@ -39,6 +39,34 @@ void log_message(const char* msg, ...)
 	}
 }
 
+//
+// simple method to parse hex color w/ alpha to floating
+// point color representation 0.0 - 1.0
+//
+color parse_color(std::string const& input)
+{
+	color c = { 0.0f,0.0f, 0.0f, 0.0f};
+	if (!input.empty() && input[0] == '#')
+	{
+		char* p = 0;
+		auto digits = input.substr(1);
+		auto const cch = digits.size();
+
+		if (cch == 8)
+		{
+			uint32_t x = strtoul(digits.c_str(), &p, 16);
+			if (*p == 0)
+			{
+				c.a = static_cast<uint8_t>((x >> 24) & 0x000000ff) / 255.0f;
+				c.r = static_cast<uint8_t>((x >> 16) & 0x000000ff) / 255.0f;
+				c.g = static_cast<uint8_t>((x >> 8) & 0x000000ff) / 255.0f;
+				c.b = static_cast<uint8_t>((x) & 0x000000ff) / 255.0f;
+			}
+		}
+	}
+	return c;
+}
+
 string trim(string const& input)
 {
 	const char* ws = " \t\n\r\f\v";
