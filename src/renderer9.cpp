@@ -588,7 +588,7 @@ namespace {
 				return;
 			}
 			
-			clear(bg_color_);
+			clear(color());
 			
 			device_->BeginScene();
 
@@ -611,7 +611,7 @@ namespace {
 			{
 				buffer = frame_buffer_->bind(target->share_handle());
 					
-				clear(color(0.0f, 0.0f, 0.0f, 0.0f));
+				clear(bg_color_);
 	
 				render_scene();
 					
