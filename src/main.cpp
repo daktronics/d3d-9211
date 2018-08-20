@@ -403,8 +403,8 @@ void on_command(HWND window, uint32_t id)
 			else {
 				clock_.pause();
 			}
-			break;	
-
+			break;
+			
 		case ID_BACKGROUND_NONE: 
 			set_background(window, "#00000000");
 			break;

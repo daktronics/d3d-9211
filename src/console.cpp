@@ -107,7 +107,7 @@ namespace {
 			auto const ret = vsnprintf(
 				format_buff_.get(), max_format_cch_, msg, args);
 
-			if (ret >= 0 && ret < max_format_cch_) {
+			if (ret >= 0 && ret < int32_t(max_format_cch_)) {
 				writeln(index, string(format_buff_.get(), ret));
 			}
 			else {

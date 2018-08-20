@@ -927,73 +927,74 @@ namespace {
 		}
 
 	};
-}
 
-//
+	//
 // create a D3D9Ex device instance
 //
-shared_ptr<IDirect3DDevice9Ex> create_device(HWND window, uint32_t width, uint32_t height)
-{
-	IDirect3D9Ex* d3d9 = nullptr;
-	auto hr = Direct3DCreate9Ex(D3D_SDK_VERSION, &d3d9);
-	if (FAILED(hr)) {
+	shared_ptr<IDirect3DDevice9Ex> create_device(HWND window, uint32_t width, uint32_t height)
+	{
+		IDirect3D9Ex* d3d9 = nullptr;
+		auto hr = Direct3DCreate9Ex(D3D_SDK_VERSION, &d3d9);
+		if (FAILED(hr)) {
+			return nullptr;
+		}
+
+		D3DPRESENT_PARAMETERS pp = {};
+		pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+		pp.hDeviceWindow = window;
+		pp.Windowed = TRUE;
+		pp.BackBufferHeight = height;
+		pp.BackBufferWidth = width;
+
+		IDirect3DDevice9Ex* device = nullptr;
+		hr = d3d9->CreateDeviceEx(
+			0,
+			D3DDEVTYPE_HAL,
+			window,
+			D3DCREATE_HARDWARE_VERTEXPROCESSING,
+			&pp,
+			nullptr,
+			&device);
+
+		d3d9->Release();
+
+		if (SUCCEEDED(hr)) {
+			return to_com_ptr(device);
+		}
+
 		return nullptr;
 	}
 
-	D3DPRESENT_PARAMETERS pp = {};
-	pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-	pp.hDeviceWindow = window;
-	pp.Windowed = TRUE;
-	pp.BackBufferHeight = height;
-	pp.BackBufferWidth = width;
-
-	IDirect3DDevice9Ex* device = nullptr;
-	hr = d3d9->CreateDeviceEx(
-		0,
-		D3DDEVTYPE_HAL,
-		window,
-		D3DCREATE_HARDWARE_VERTEXPROCESSING,
-		&pp,
-		nullptr,
-		&device);
-
-	d3d9->Release();
-
-	if (SUCCEEDED(hr)) {
-		return to_com_ptr(device);
-	}
-
-	return nullptr;
-}
-
-shared_ptr<FrameBuffer> create_frame_buffer(
+	shared_ptr<FrameBuffer> create_frame_buffer(
 		shared_ptr<IDirect3DDevice9Ex> const& device,
-		uint32_t buffers, 
-		uint32_t width, 
+		uint32_t buffers,
+		uint32_t width,
 		uint32_t height)
-{
-	vector<std::shared_ptr<Texture2D>> textures;
-
-	for (size_t n = 0; n < buffers; n++)
 	{
-		HANDLE share = nullptr;
-		IDirect3DTexture9* texture = nullptr;
-		auto const hr = device->CreateTexture(
-			width, height, 1, 
-			D3DUSAGE_RENDERTARGET, 
-			D3DFMT_A8R8G8B8, 
-			D3DPOOL_DEFAULT, 
-			&texture, 
-			&share);
-		if (SUCCEEDED(hr)) {
-			textures.push_back(make_shared<Texture2D>(device, texture, share));
+		vector<std::shared_ptr<Texture2D>> textures;
+
+		for (size_t n = 0; n < buffers; n++)
+		{
+			HANDLE share = nullptr;
+			IDirect3DTexture9* texture = nullptr;
+			auto const hr = device->CreateTexture(
+				width, height, 1,
+				D3DUSAGE_RENDERTARGET,
+				D3DFMT_A8R8G8B8,
+				D3DPOOL_DEFAULT,
+				&texture,
+				&share);
+			if (SUCCEEDED(hr)) {
+				textures.push_back(make_shared<Texture2D>(device, texture, share));
+			}
 		}
+
+		if (!textures.empty()) {
+			return make_shared<FrameBuffer>(device, textures);
+		}
+		return nullptr;
 	}
 
-	if (!textures.empty()) {
-		return make_shared<FrameBuffer>(device, textures);
-	}
-	return nullptr;
 }
 
 shared_ptr<IScene> create_producer(
