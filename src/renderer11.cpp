@@ -21,6 +21,7 @@ namespace {
 		shared_ptr<d3d11::Geometry> geometry_;
 		shared_ptr<d3d11::Effect> effect_;		
 		shared_ptr<ISurface> surface_;
+		shared_ptr<d3d11::Texture2D> staging_;
 		map<void*, shared_ptr<d3d11::Texture2D>> textures_;	
 
 		color bg_color_;
@@ -106,10 +107,22 @@ namespace {
 						effect_ = device_->create_default_effect();
 					}
 
+					if (!staging_)
+					{
+						staging_ = device_->create_dynamic_texture(
+							texture->width(), texture->height(), texture->format());
+					}
+
 					// bind our states/resource to the pipeline
 					d3d11::ScopedBinder<d3d11::Geometry> quad_binder(ctx, geometry_);
 					d3d11::ScopedBinder<d3d11::Effect> fx_binder(ctx, effect_);
-					d3d11::ScopedBinder<d3d11::Texture2D> tex_binder(ctx, texture);
+					d3d11::ScopedBinder<d3d11::Texture2D> tex_binder(ctx, staging_);
+
+					if (staging_)
+					{
+						staging_->copy_from(texture);
+						ctx->flush();
+					}
 
 					// actually draw the quad
 					geometry_->draw();

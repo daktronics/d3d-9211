@@ -78,6 +78,11 @@ namespace d3d11 {
 					const void* data,
 					size_t row_stride);
 
+		std::shared_ptr<Texture2D> create_dynamic_texture(
+			int width,
+			int height,
+			DXGI_FORMAT format);
+
 		std::shared_ptr<Texture2D> open_shared_texture(void*);
 
 		std::shared_ptr<Effect> create_default_effect();

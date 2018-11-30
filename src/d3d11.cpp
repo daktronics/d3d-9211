@@ -594,6 +594,48 @@ namespace d3d11 {
 		return make_shared<Texture2D>(tex, srv);
 	}
 
+	shared_ptr<Texture2D> Device::create_dynamic_texture(
+		int width,
+		int height,
+		DXGI_FORMAT format)
+	{
+		D3D11_TEXTURE2D_DESC td;
+		td.ArraySize = 1;
+		td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		td.Format = format;
+		td.Width = width;
+		td.Height = height;
+		td.MipLevels = 1;
+		td.MiscFlags = 0;
+		td.SampleDesc.Count = 1;
+		td.SampleDesc.Quality = 0;
+		td.Usage = D3D11_USAGE_DYNAMIC;
+
+		ID3D11Texture2D* tex = nullptr;
+		auto hr = device_->CreateTexture2D(&td, nullptr, &tex);
+		if (FAILED(hr)) {
+			return nullptr;
+		}
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
+		srv_desc.Format = td.Format;
+		srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srv_desc.Texture2D.MostDetailedMip = 0;
+		srv_desc.Texture2D.MipLevels = 1;
+
+		ID3D11ShaderResourceView* srv = nullptr;
+		hr = device_->CreateShaderResourceView(tex, &srv_desc, &srv);
+		if (FAILED(hr))
+		{
+			tex->Release();
+			return nullptr;
+		}
+
+		return make_shared<Texture2D>(tex, srv);
+
+	}
+
 	shared_ptr<Texture2D> Device::create_texture(
 			int width,
 			int height,
